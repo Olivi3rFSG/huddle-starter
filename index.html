@@ -1,0 +1,2935 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Huddle - Starter Plan ($29/month)</title>
+    
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            -webkit-font-smoothing: antialiased;
+        }
+        
+        .view-container { min-height: 100vh; }
+        .hidden { display: none !important; }
+        
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+        .notification-badge {
+            position: absolute; top: -6px; right: -6px; background: #EF4444;
+            border-radius: 50%; width: 20px; height: 20px; display: flex;
+            align-items: center; justify-content: center; font-size: 11px;
+            font-weight: 700; color: white; animation: pulse 2s infinite;
+        }
+    </style>
+</head>
+<body>
+    <!-- PRICING PAGE VIEW -->
+    <div id="pricing-view" class="view-container">
+        <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; padding: 40px 20px;">
+            <div style="max-width: 800px; margin: 0 auto; background: white; border-radius: 24px; box-shadow: 0 20px 60px rgba(0,0,0,0.3); overflow: hidden;">
+                <div style="background: linear-gradient(135deg, #FF6B35 0%, #FF8E53 100%); color: white; padding: 60px 40px; text-align: center;">
+                    <div style="font-size: 48px; font-weight: 800; margin-bottom: 16px;">Starter</div>
+                    <div style="font-size: 64px; font-weight: 900; margin-bottom: 8px;">$29</div>
+                    <div style="font-size: 20px; opacity: 0.9;">per month</div>
+                </div>
+                
+                <div style="padding: 50px 40px;">
+                    <h2 style="font-size: 24px; font-weight: 700; margin-bottom: 20px;">Ready to transform your coaching business?</h2>
+                    <p style="font-size: 16px; color: #6b7280; line-height: 1.6; margin-bottom: 30px;">
+                        Click below to start your free 14-day trial. No credit card required.
+                    </p>
+                    
+                    <button onclick="startApp()" style="background: linear-gradient(135deg, #FF6B35 0%, #FF8E53 100%); color: white; padding: 18px 48px; border-radius: 12px; border: none; font-size: 18px; font-weight: 700; cursor: pointer; width: 100%; box-shadow: 0 4px 20px rgba(0,0,0,0.2); transition: transform 0.2s;" onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform='translateY(0)'">
+                        Start Your Free Trial
+                    </button>
+                    
+                    <div style="text-align: center; margin-top: 20px; font-size: 13px; color: #9ca3af;">
+                        No credit card required • Cancel anytime
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- APP VIEW -->
+    <div id="app-view" class="view-container hidden"></div>
+
+    <script>
+        function startApp() {
+            document.getElementById('pricing-view').classList.add('hidden');
+            document.getElementById('app-view').classList.remove('hidden');
+            initApp();
+        }
+    </script>
+
+    <script type="text/babel">
+
+        const { useState, useEffect } = React;
+
+        const Icon = ({ name, size = 24, color, style, onClick }) => {
+            useEffect(() => { lucide.createIcons(); }, []);
+            return React.createElement('i', { 'data-lucide': name, style: { width: size, height: size, color, ...style }, onClick });
+        };
+
+        // UNIFIED DATA MODEL - ALL MILESTONES
+        // Consistent rates: Head Coach $50/hr, Assistant Coaches $40/hr
+        // Student pricing: 1-to-1=$80, 2-to-1=$50, 3-to-1=$40 per student
+        // Coach payment: HOURLY RATE (not per student)
+        //   - Coach gets fixed hourly rate regardless of # students
+        //   - Example: Asst coach ($40/hr) teaches 3-to-1 session
+        //     Students pay: 3 × $40 = $120
+        //     Coach gets: $40/hr (fixed)
+        //     Head Coach gets: $120 - $40 = $80 (profit)
+        // Student billing: Only charged if attended (absences = $0)
+
+        const INITIAL_DATA = {
+            sessions: [
+                // UPCOMING SESSIONS
+                {
+                    id: 1, type: '1-to-1', 
+                    students: [{ name: 'Ryan Ho', attended: null, id: 's1', email: 'ryan@parent.com' }],
+                    coach: 'Coach Melvin', coachId: 'c1', coachRate: 50,
+                    date: '2026-04-25', time: '8:00 AM - 10:00 AM', venue: 'Sengkang Sports Hall',
+                    status: 'upcoming', pricePerStudent: 80, basePrice: 80
+                },
+                {
+                    id: 11, type: '2-to-1',
+                    students: [
+                        { name: 'Ryan Ho', attended: null, id: 's1', email: 'ryan@parent.com' },
+                        { name: 'Emily Chen', attended: null, id: 's4', email: 'emily@parent.com' }
+                    ],
+                    coach: 'Coach Melvin', coachId: 'c1', coachRate: 50,
+                    date: '2026-04-23', time: '2:00 PM - 4:00 PM', venue: 'OCBC Arena',
+                    status: 'upcoming', pricePerStudent: 50, basePrice: 100
+                },
+                {
+                    id: 5, type: '2-to-1',
+                    students: null, coach: null, coachId: null, coachRate: 0,
+                    date: '2026-04-22', time: '10:00 AM - 12:00 PM', venue: 'Tampines Hub',
+                    status: 'unassigned', pricePerStudent: 50, basePrice: 100, canSelfAssign: true,
+                    inviteSent: 'c2', invitedCoachName: 'Coach Sarah', inviteStatus: 'pending'
+                },
+                {
+                    id: 12, type: '1-to-1',
+                    students: [{ name: 'Jerrell Tan', attended: null, id: 's2', email: 'jerrell@parent.com' }],
+                    coach: 'Coach Melvin', coachId: 'c1', coachRate: 50,
+                    date: '2026-04-21', time: '4:00 PM - 6:00 PM', venue: 'Yishun Sports Hall',
+                    status: 'upcoming', pricePerStudent: 80, basePrice: 80
+                },
+                {
+                    id: 13, type: '3-to-1',
+                    students: null, coach: null, coachId: null, coachRate: 0,
+                    date: '2026-04-20', time: '6:00 PM - 8:00 PM', venue: 'Expo Hall',
+                    status: 'unassigned', pricePerStudent: 40, basePrice: 120, canSelfAssign: true,
+                    inviteSent: null, invitedCoachName: null, inviteStatus: null
+                },
+                {
+                    id: 10, type: '2-to-1',
+                    students: [
+                        { name: 'Ryan Ho', attended: null, id: 's1', email: 'ryan@parent.com' },
+                        { name: 'Bryan Tan', attended: null, id: 's3', email: 'bryan@parent.com' }
+                    ],
+                    coach: 'Coach Sarah', coachId: 'c2', coachRate: 40,
+                    date: '2026-04-18', time: '6:00 PM - 8:00 PM', venue: 'OCBC Arena',
+                    status: 'upcoming', pricePerStudent: 50, basePrice: 100
+                },
+                {
+                    id: 9, type: '1-to-1',
+                    students: [{ name: 'Bryan Tan', attended: null, id: 's3', email: 'bryan@parent.com' }],
+                    coach: 'Coach Sarah', coachId: 'c2', coachRate: 40,
+                    date: '2026-04-18', time: '10:00 AM - 12:00 PM', venue: 'Tampines Hub',
+                    status: 'upcoming', pricePerStudent: 80, basePrice: 80
+                },
+                
+                // TODAY
+                {
+                    id: 2, type: '3-to-1',
+                    students: [
+                        { name: 'Ryan Ho', attended: null, id: 's1', email: 'ryan@parent.com' },
+                        { name: 'Jerrell Tan', attended: null, id: 's2', email: 'jerrell@parent.com' },
+                        { name: 'Bryan Tan', attended: null, id: 's3', email: 'bryan@parent.com' }
+                    ],
+                    coach: 'Coach Sarah', coachId: 'c2', coachRate: 40,
+                    date: '2026-04-16', time: '4:00 PM - 6:00 PM', venue: 'Yishun Sports Hall',
+                    status: 'today', pricePerStudent: 40, basePrice: 120
+                },
+                
+                // COMPLETED SESSIONS
+                {
+                    id: 14, type: '2-to-1',
+                    students: [
+                        { name: 'Ryan Ho', attended: true, id: 's1', email: 'ryan@parent.com' },
+                        { name: 'Emily Chen', attended: true, id: 's4', email: 'emily@parent.com' }
+                    ],
+                    coach: 'Coach Melvin', coachId: 'c1', coachRate: 50,
+                    date: '2026-04-10', time: '10:00 AM - 12:00 PM', venue: 'Sengkang Sports Hall',
+                    status: 'completed', pricePerStudent: 50, basePrice: 100, paid: true
+                },
+                {
+                    id: 15, type: '1-to-1',
+                    students: [{ name: 'Jerrell Tan', attended: true, id: 's2', email: 'jerrell@parent.com' }],
+                    coach: 'Coach Melvin', coachId: 'c1', coachRate: 50,
+                    date: '2026-04-08', time: '2:00 PM - 4:00 PM', venue: 'OCBC Arena',
+                    status: 'completed', pricePerStudent: 80, basePrice: 80, paid: true
+                },
+                {
+                    id: 16, type: '3-to-1',
+                    students: [
+                        { name: 'Ryan Ho', attended: true, id: 's1', email: 'ryan@parent.com' },
+                        { name: 'Jerrell Tan', attended: true, id: 's2', email: 'jerrell@parent.com' },
+                        { name: 'Bryan Tan', attended: false, id: 's3', email: 'bryan@parent.com' }
+                    ],
+                    coach: 'Coach Melvin', coachId: 'c1', coachRate: 50,
+                    date: '2026-04-05', time: '8:00 AM - 10:00 AM', venue: 'Yishun Sports Hall',
+                    status: 'completed', pricePerStudent: 40, basePrice: 120, paid: true
+                },
+                {
+                    id: 17, type: '1-to-1',
+                    students: [{ name: 'Emily Chen', attended: true, id: 's4', email: 'emily@parent.com' }],
+                    coach: 'Coach Melvin', coachId: 'c1', coachRate: 50,
+                    date: '2026-04-03', time: '4:00 PM - 6:00 PM', venue: 'Expo Hall',
+                    status: 'completed', pricePerStudent: 80, basePrice: 80, paid: true
+                },
+                {
+                    id: 3, type: '1-to-1',
+                    students: [{ name: 'Bryan Tan', attended: true, id: 's3', email: 'bryan@parent.com' }],
+                    coach: 'Coach Mike', coachId: 'c3', coachRate: 40,
+                    date: '2026-03-27', time: '8:00 AM - 10:00 AM', venue: 'Expo Hall',
+                    status: 'completed', pricePerStudent: 80, basePrice: 80, paid: true
+                },
+                {
+                    id: 4, type: '3-to-1',
+                    students: [
+                        { name: 'Ryan Ho', attended: true, id: 's1', email: 'ryan@parent.com' },
+                        { name: 'Jerrell Tan', attended: true, id: 's2', email: 'jerrell@parent.com' },
+                        { name: 'Emily Chen', attended: false, id: 's4', email: 'emily@parent.com', absenceCharge: 0 }
+                    ],
+                    coach: 'Coach Melvin', coachId: 'c1', coachRate: 50,
+                    date: '2026-03-25', time: '2:00 PM - 4:00 PM', venue: 'OCBC Arena',
+                    status: 'completed', pricePerStudent: 40, basePrice: 120,
+                    absenceNotified: true, paid: true
+                },
+                {
+                    id: 8, type: '3-to-1',
+                    students: [
+                        { name: 'Jerrell Tan', attended: true, id: 's2', email: 'jerrell@parent.com' },
+                        { name: 'Bryan Tan', attended: true, id: 's3', email: 'bryan@parent.com' },
+                        { name: 'Emily Chen', attended: true, id: 's4', email: 'emily@parent.com' }
+                    ],
+                    coach: 'Coach Sarah', coachId: 'c2', coachRate: 40,
+                    date: '2026-03-22', time: '2:00 PM - 4:00 PM', venue: 'OCBC Arena',
+                    status: 'completed', pricePerStudent: 40, basePrice: 120, paid: true
+                },
+                {
+                    id: 7, type: '2-to-1',
+                    students: [
+                        { name: 'Ryan Ho', attended: true, id: 's1', email: 'ryan@parent.com' },
+                        { name: 'Jerrell Tan', attended: true, id: 's2', email: 'jerrell@parent.com' }
+                    ],
+                    coach: 'Coach Sarah', coachId: 'c2', coachRate: 40,
+                    date: '2026-03-20', time: '3:00 PM - 5:00 PM', venue: 'Yishun Sports Hall',
+                    status: 'completed', pricePerStudent: 50, basePrice: 100, paid: false
+                },
+                {
+                    id: 6, type: '1-to-1',
+                    students: [{ name: 'Ryan Ho', attended: true, id: 's1', email: 'ryan@parent.com' }],
+                    coach: 'Coach Sarah', coachId: 'c2', coachRate: 40,
+                    date: '2026-03-18', time: '9:00 AM - 11:00 AM', venue: 'Sengkang Sports Hall',
+                    status: 'completed', pricePerStudent: 80, basePrice: 80, paid: true
+                },
+                {
+                    id: 18, type: '1-to-1',
+                    students: [{ name: 'Ryan Ho', attended: false, id: 's1', email: 'ryan@parent.com' }],
+                    coach: 'Coach Sarah', coachId: 'c2', coachRate: 40,
+                    date: '2026-03-15', time: '8:00 AM - 10:00 AM', venue: 'Expo Hall',
+                    status: 'completed', pricePerStudent: 80, basePrice: 80, paid: false
+                }
+            ],
+            coaches: [
+                { id: 'c1', name: 'Coach Melvin', role: 'headCoach', 
+                  email: 'melvin@academy.com', mobile: '+65 9123 4567',
+                  rate: 50, status: 'active',
+                  ageGroups: ['6-12 years', '13-18 years'], 
+                  levels: ['Beginner', 'Intermediate', 'Advanced'],
+                  classTypes: ['Private', 'Group'] },
+                { id: 'c2', name: 'Coach Sarah', role: 'assistantCoach',
+                  email: 'sarah@academy.com', mobile: '+65 9234 5678',
+                  rate: 40, status: 'active',
+                  ageGroups: ['6-12 years'], 
+                  levels: ['Beginner', 'Intermediate'],
+                  classTypes: ['Private', 'Group'] },
+                { id: 'c3', name: 'Coach Mike', role: 'assistantCoach',
+                  email: 'mike@academy.com', mobile: '+65 9345 6789',
+                  rate: 40, status: 'active',
+                  ageGroups: ['13-18 years'], 
+                  levels: ['Intermediate', 'Advanced'],
+                  classTypes: ['Group'] }
+            ],
+            students: [
+                { id: 's1', name: 'Ryan Ho', email: 'ryan@student.com', 
+                  mobile: '+65 8123 4567', level: 'Intermediate', status: 'active' },
+                { id: 's2', name: 'Jerrell Tan', email: 'jerrell@student.com',
+                  mobile: '+65 8234 5678', level: 'Beginner', status: 'active' },
+                { id: 's3', name: 'Bryan Tan', email: 'bryan@student.com',
+                  mobile: '+65 8345 6789', level: 'Advanced', status: 'active' },
+                { id: 's4', name: 'Emily Chen', email: 'emily@student.com',
+                  mobile: '+65 8456 7890', level: 'Beginner', status: 'active' }
+            ],
+            notifications: [
+                {
+                    id: 'n1', type: 'absence', sessionId: 4, studentName: 'Emily Chen',
+                    date: '2026-03-25', message: 'Emily Chen marked absent - No charge applied',
+                    read: false, timestamp: '2026-03-25 14:30'
+                }
+            ],
+            approvals: [
+                { id: 'a1', type: 'rateChange', coachId: 'c2', coachName: 'Coach Sarah',
+                  current: 40, proposed: 45, by: 'Academy Admin', date: '2026-04-08',
+                  reason: 'Performance improvement and market adjustment' }
+            ]
+        };
+
+        function HuddleApp() {
+            const [role, setRole] = useState('headCoach'); // headCoach, admin, assistantCoach, student
+            const [activeTab, setActiveTab] = useState('home');
+            const [data, setData] = useState(INITIAL_DATA);
+            const [selected, setSelected] = useState({ session: null, coach: null, student: null, approval: null });
+            const [showNotifications, setShowNotifications] = useState(false);
+            const [showCreateSession, setShowCreateSession] = useState(false);
+            const [calendarView, setCalendarView] = useState('list');
+
+            // Sort sessions by date (descending - latest/newest first)
+            const sortSessionsByDate = (sessions) => {
+                return [...sessions].sort((a, b) => {
+                    const dateA = new Date(a.date);
+                    const dateB = new Date(b.date);
+                    return dateB - dateA; // Descending: newest first
+                });
+            };
+
+            // Check if coach is available for a session (no time conflicts)
+            const isCoachAvailable = (coachId, sessionDate, sessionTime) => {
+                const coachSessions = data.sessions.filter(s => 
+                    s.coachId === coachId && s.date === sessionDate && s.status !== 'completed'
+                );
+                // Simple check: if coach has any session on same date/time, they're not available
+                return !coachSessions.some(s => s.time === sessionTime);
+            };
+
+            // Invite coach to unassigned session
+            const inviteCoach = (sessionId, coachId, coachName) => {
+                setData({
+                    ...data,
+                    sessions: data.sessions.map(s =>
+                        s.id === sessionId ? {
+                            ...s,
+                            inviteSent: coachId,
+                            invitedCoachName: coachName,
+                            inviteStatus: 'pending'
+                        } : s
+                    )
+                });
+                alert(`✉️ Invite sent to ${coachName}!`);
+            };
+
+            // Respond to invitation (for assistant coaches)
+            const respondToInvite = (sessionId, accept) => {
+                if (accept) {
+                    const session = data.sessions.find(s => s.id === sessionId);
+                    const coach = data.coaches.find(c => c.id === session.inviteSent);
+                    
+                    setData({
+                        ...data,
+                        sessions: data.sessions.map(s =>
+                            s.id === sessionId ? {
+                                ...s,
+                                coach: coach.name,
+                                coachId: coach.id,
+                                coachRate: coach.rate,
+                                status: 'upcoming',
+                                inviteSent: null,
+                                invitedCoachName: null,
+                                inviteStatus: null,
+                                canSelfAssign: false
+                            } : s
+                        )
+                    });
+                    alert('✅ Session accepted!');
+                } else {
+                    setData({
+                        ...data,
+                        sessions: data.sessions.map(s =>
+                            s.id === sessionId ? {
+                                ...s,
+                                inviteSent: null,
+                                invitedCoachName: null,
+                                inviteStatus: null
+                            } : s
+                        )
+                    });
+                    alert('❌ Invite declined');
+                }
+            };
+
+            // Update absence charge for a student in a session
+            const updateAbsenceCharge = (sessionId, studentId, charge) => {
+                setData({
+                    ...data,
+                    sessions: data.sessions.map(s =>
+                        s.id === sessionId ? {
+                            ...s,
+                            students: s.students?.map(st =>
+                                st.id === studentId ? { ...st, absenceCharge: parseFloat(charge) || 0 } : st
+                            )
+                        } : s
+                    )
+                });
+            };
+
+            // Calculate billing based on attendance
+            const calculateBilling = (session) => {
+                if (!session.students) return { total: 0, breakdown: [], attendedCount: 0 };
+                
+                const breakdown = session.students.map(student => {
+                    let charge = 0;
+                    let status = 'Pending';
+                    
+                    if (student.attended === true) {
+                        charge = session.pricePerStudent;
+                        status = 'Charged';
+                    } else if (student.attended === false) {
+                        // Check if there's a custom absence charge
+                        if (student.absenceCharge !== undefined && student.absenceCharge > 0) {
+                            charge = student.absenceCharge;
+                            status = 'Charged (Absence Fee)';
+                        } else {
+                            charge = 0;
+                            status = 'No Charge';
+                        }
+                    }
+                    
+                    return {
+                        name: student.name,
+                        email: student.email,
+                        attended: student.attended,
+                        charge,
+                        status,
+                        absenceCharge: student.absenceCharge
+                    };
+                });
+
+                const total = breakdown.reduce((sum, s) => sum + s.charge, 0);
+                const attendedCount = breakdown.filter(s => s.attended === true).length;
+                
+                return { total, breakdown, attendedCount };
+            };
+
+            // Calculate coach stats
+            const getCoachStats = (coachId) => {
+                const coachSessions = data.sessions.filter(s => s.coachId === coachId && s.status === 'completed');
+                const sessionsCount = coachSessions.length;
+                const coach = data.coaches.find(c => c.id === coachId);
+                
+                // Calculate total hours from sessions (each session is 2 hours based on time slots)
+                const totalHours = sessionsCount * 2; // Each session is 2 hours (e.g., 8-10 AM)
+                const earnings = totalHours * (coach?.rate || 0); // Hourly rate × total hours
+                
+                return { sessionsCount, earnings, totalHours };
+            };
+
+            // Calculate Head Coach profit from assistant coach sessions
+            const getHeadCoachProfit = () => {
+                const assistantSessions = data.sessions.filter(s => 
+                    s.coachId !== 'c1' && // Not head coach's own sessions
+                    s.status === 'completed' && 
+                    s.students
+                );
+                
+                let totalProfit = 0;
+                assistantSessions.forEach(session => {
+                    const billing = calculateBilling(session);
+                    const profit = billing.total - session.coachRate; // Student charges - coach hourly rate
+                    if (profit > 0) totalProfit += profit;
+                });
+                
+                return totalProfit;
+            };
+
+            // Calculate student stats
+            const getStudentStats = (studentId) => {
+                const studentSessions = data.sessions.filter(s => 
+                    s.students?.some(st => st.id === studentId)
+                );
+                const completedSessions = studentSessions.filter(s => s.status === 'completed');
+                
+                let totalPaid = 0;
+                let totalOwed = 0;
+                
+                completedSessions.forEach(session => {
+                    const student = session.students.find(st => st.id === studentId);
+                    if (student) {
+                        const charge = student.attended === true ? session.pricePerStudent : 0;
+                        totalPaid += charge; // In real app, track paid vs unpaid
+                        // totalOwed would be unpaid sessions
+                    }
+                });
+
+                return { 
+                    sessionsAttended: completedSessions.filter(s => 
+                        s.students.find(st => st.id === studentId)?.attended === true
+                    ).length,
+                    totalSessions: completedSessions.length,
+                    totalPaid,
+                    totalOwed: 0 // For demo purposes
+                };
+            };
+
+            // Mark attendance
+            const markAttendance = (sessionId, studentId, attended) => {
+                setData({
+                    ...data,
+                    sessions: data.sessions.map(session => {
+                        if (session.id === sessionId) {
+                            const updatedStudents = session.students.map(student => {
+                                if (student.id === studentId) {
+                                    // Create absence notification
+                                    if (attended === false) {
+                                        const newNotif = {
+                                            id: `n${Date.now()}`,
+                                            type: 'absence',
+                                            sessionId: session.id,
+                                            studentName: student.name,
+                                            date: session.date,
+                                            message: `${student.name} marked absent - No charge applied`,
+                                            read: false,
+                                            timestamp: new Date().toISOString()
+                                        };
+                                        setData(prev => ({
+                                            ...prev,
+                                            notifications: [newNotif, ...prev.notifications]
+                                        }));
+                                    }
+                                    return { ...student, attended };
+                                }
+                                return student;
+                            });
+                            
+                            const allMarked = updatedStudents.every(s => s.attended !== null);
+                            
+                            return {
+                                ...session,
+                                students: updatedStudents,
+                                status: allMarked ? 'completed' : session.status,
+                                absenceNotified: updatedStudents.some(s => s.attended === false)
+                            };
+                        }
+                        return session;
+                    })
+                });
+            };
+
+            // Self-assign session (for assistant coaches)
+            const selfAssign = (sessionId, coachId) => {
+                const coach = data.coaches.find(c => c.id === coachId);
+                if (!coach) return;
+                
+                setData({
+                    ...data,
+                    sessions: data.sessions.map(s =>
+                        s.id === sessionId ? {
+                            ...s,
+                            coach: coach.name,
+                            coachId: coach.id,
+                            coachRate: coach.rate,
+                            status: 'upcoming',
+                            canSelfAssign: false
+                        } : s
+                    )
+                });
+                alert(`✅ Self-assigned to session!`);
+            };
+
+            // Approve/reject requests (Head Coach only)
+            const handleApproval = (approvalId, approved) => {
+                const approval = data.approvals.find(a => a.id === approvalId);
+                if (!approval) return;
+
+                if (approval.type === 'rateChange' && approved) {
+                    setData({
+                        ...data,
+                        coaches: data.coaches.map(c =>
+                            c.id === approval.coachId ? { ...c, rate: approval.proposed } : c
+                        ),
+                        approvals: data.approvals.filter(a => a.id !== approvalId)
+                    });
+                    alert(`✅ Rate approved! ${approval.coachName}: $${approval.current} → $${approval.proposed}`);
+                } else {
+                    setData({
+                        ...data,
+                        approvals: data.approvals.filter(a => a.id !== approvalId)
+                    });
+                    alert(approved ? '✅ Approved!' : '❌ Rejected');
+                }
+                
+                setSelected({ ...selected, approval: null });
+            };
+
+            const unreadNotifications = data.notifications.filter(n => !n.read).length;
+
+            return (
+                <div style={{ minHeight: '100vh', backgroundColor: '#F8F9FA' }}>
+                    {/* Role Switcher */}
+                    <RoleSwitcher 
+                        role={role} 
+                        setRole={setRole} 
+                        notificationCount={unreadNotifications}
+                        approvalCount={data.approvals.length}
+                    />
+
+                    {/* Main Views */}
+                    {role === 'headCoach' && (
+                        <HeadCoachView 
+                            data={data} 
+                            activeTab={activeTab} 
+                            setActiveTab={setActiveTab}
+                            selected={selected}
+                            setSelected={setSelected}
+                            calculateBilling={calculateBilling}
+                            getCoachStats={getCoachStats}
+                            getHeadCoachProfit={getHeadCoachProfit}
+                            markAttendance={markAttendance}
+                            handleApproval={handleApproval}
+                            showNotifications={showNotifications}
+                            setShowNotifications={setShowNotifications}
+                            calendarView={calendarView}
+                            setCalendarView={setCalendarView}
+                            sortSessionsByDate={sortSessionsByDate}
+                            inviteCoach={inviteCoach}
+                            isCoachAvailable={isCoachAvailable}
+                            updateAbsenceCharge={updateAbsenceCharge}
+                        />
+                    )}
+
+                    {role === 'admin' && (
+                        <AdminView 
+                            data={data}
+                            activeTab={activeTab}
+                            setActiveTab={setActiveTab}
+                            selected={selected}
+                            setSelected={setSelected}
+                            calculateBilling={calculateBilling}
+                            calendarView={calendarView}
+                            setCalendarView={setCalendarView}
+                            sortSessionsByDate={sortSessionsByDate}
+                            inviteCoach={inviteCoach}
+                            isCoachAvailable={isCoachAvailable}
+                        />
+                    )}
+
+                    {role === 'assistantCoach' && (
+                        <AssistantCoachView 
+                            data={data}
+                            activeTab={activeTab}
+                            setActiveTab={setActiveTab}
+                            selected={selected}
+                            setSelected={setSelected}
+                            selfAssign={selfAssign}
+                            markAttendance={markAttendance}
+                            calculateBilling={calculateBilling}
+                            sortSessionsByDate={sortSessionsByDate}
+                            respondToInvite={respondToInvite}
+                        />
+                    )}
+
+                    {role === 'student' && (
+                        <StudentView 
+                            data={data}
+                            activeTab={activeTab}
+                            setActiveTab={setActiveTab}
+                            selected={selected}
+                            setSelected={setSelected}
+                            getStudentStats={getStudentStats}
+                            calculateBilling={calculateBilling}
+                        />
+                    )}
+
+                    {/* Modals */}
+                    {selected.session && (
+                        <SessionModal 
+                            session={selected.session}
+                            role={role}
+                            onClose={() => setSelected({ ...selected, session: null })}
+                            onMarkAttendance={markAttendance}
+                            calculateBilling={calculateBilling}
+                        />
+                    )}
+
+                    {selected.approval && (
+                        <ApprovalModal 
+                            approval={selected.approval}
+                            onApprove={() => handleApproval(selected.approval.id, true)}
+                            onReject={() => handleApproval(selected.approval.id, false)}
+                            onClose={() => setSelected({ ...selected, approval: null })}
+                        />
+                    )}
+
+                    {selected.coach && (
+                        <CoachDetailModal 
+                            coach={selected.coach}
+                            sessions={data.sessions}
+                            calculateBilling={calculateBilling}
+                            getCoachStats={getCoachStats}
+                            onClose={() => setSelected({ ...selected, coach: null })}
+                        />
+                    )}
+
+                    {selected.student && (
+                        <StudentDetailModal 
+                            student={selected.student}
+                            sessions={data.sessions}
+                            calculateBilling={calculateBilling}
+                            onClose={() => setSelected({ ...selected, student: null })}
+                            updateAbsenceCharge={updateAbsenceCharge}
+                            role={role}
+                        />
+                    )}
+                </div>
+            );
+        }
+
+        function RoleSwitcher({ role, setRole, notificationCount, approvalCount }) {
+            return (
+                <div style={{
+                    position: 'fixed', top: 10, right: 10, zIndex: 1000,
+                    background: 'rgba(0,0,0,0.9)', borderRadius: 8, padding: 12,
+                    display: 'flex', flexDirection: 'column', gap: 6, minWidth: 160
+                }}>
+                    <div style={{ color: 'white', fontSize: 10, fontWeight: 700, marginBottom: 4 }}>
+                        ROLE SELECTOR - STARTER PLAN
+                        <div style={{ fontSize: 9, opacity: 0.7, marginTop: 4 }}>Only Head Coach & Student roles</div>
+                    </div>
+                    <RoleButton active={role === 'headCoach'} onClick={() => setRole('headCoach')}
+                        label="🏆 Head Coach" color="#3B82F6" badge={approvalCount} />
+                    <RoleButton active={role === 'student'} onClick={() => setRole('student')}
+                        label="👤 Student" color="#10B981" />
+                    <div style={{
+                        background: 'rgba(255,255,255,0.1)', padding: '8px 12px', borderRadius: 8,
+                        fontSize: 11, color: 'rgba(255,255,255,0.7)', marginTop: 8
+                    }}>
+                        🔒 Admin & Assistant Coach roles available in Pro & Academy plans
+                    </div>
+                </div>
+            );
+        }
+
+        function RoleButton({ active, onClick, label, color, badge }) {
+            return (
+                <button onClick={onClick} style={{
+                    background: active ? color : 'transparent',
+                    color: 'white', border: '1px solid white', borderRadius: 4,
+                    padding: '6px 10px', fontSize: 11, fontWeight: 600,
+                    cursor: 'pointer', textAlign: 'left', position: 'relative'
+                }}>
+                    {label}
+                    {badge > 0 && active && <span className="notification-badge">{badge}</span>}
+                </button>
+            );
+        }
+
+        // HEAD COACH VIEW
+        function HeadCoachView({ data, activeTab, setActiveTab, selected, setSelected, calculateBilling, getCoachStats, getHeadCoachProfit, markAttendance, handleApproval, showNotifications, setShowNotifications, calendarView, setCalendarView, sortSessionsByDate, inviteCoach, isCoachAvailable, updateAbsenceCharge }) {
+            const [sessionFilter, setSessionFilter] = React.useState('all'); // 'all' or 'mine'
+            const [statusFilter, setStatusFilter] = React.useState('all'); // 'all', 'unassigned', 'absences', 'today', 'upcoming', 'completed'
+            const headCoachProfit = getHeadCoachProfit();
+            const stats = {
+                revenue: data.sessions.filter(s => s.status === 'completed').reduce((sum, s) => sum + calculateBilling(s).total, 0),
+                students: data.students.length,
+                coaches: data.coaches.length,
+                attendance: 87,
+                profit: headCoachProfit
+            };
+
+            // For HOME tab: Only show coach's own upcoming sessions (no filters)
+            const myUpcomingSessions = sortSessionsByDate(
+                data.sessions.filter(s => s.coachId === 'c1' && (s.status === 'upcoming' || s.status === 'today'))
+            );
+
+            // For SESSIONS tab: Apply filters for all sessions view
+            let filteredSessions = data.sessions;
+            
+            // Filter by coach (all sessions or my sessions)
+            if (sessionFilter === 'mine') {
+                filteredSessions = filteredSessions.filter(s => s.coachId === 'c1');
+            }
+            
+            // Filter by status
+            if (statusFilter === 'unassigned') {
+                filteredSessions = filteredSessions.filter(s => s.status === 'unassigned');
+            } else if (statusFilter === 'absences') {
+                filteredSessions = filteredSessions.filter(s => 
+                    s.status === 'completed' && s.students?.some(st => st.attended === false)
+                );
+            } else if (statusFilter === 'today') {
+                filteredSessions = filteredSessions.filter(s => s.status === 'today');
+            } else if (statusFilter === 'upcoming') {
+                filteredSessions = filteredSessions.filter(s => s.status === 'upcoming');
+            } else if (statusFilter === 'completed') {
+                filteredSessions = filteredSessions.filter(s => s.status === 'completed');
+            }
+            
+            const allFilteredSessions = sortSessionsByDate(filteredSessions);
+
+            return (
+                <>
+                    <Header 
+                        title="Head Coach Dashboard" 
+                        subtitle="Elite Badminton Academy"
+                        color="linear-gradient(135deg, #1E40AF 0%, #3B82F6 100%)"
+                        badge={data.approvals.length}
+                        showNotifications={showNotifications}
+                        setShowNotifications={setShowNotifications}
+                    />
+
+                    {showNotifications && (
+                        <NotificationsPanel 
+                            notifications={data.notifications}
+                            onClose={() => setShowNotifications(false)}
+                        />
+                    )}
+
+                    <div style={{ padding: 20, paddingBottom: 100 }}>
+                        {activeTab === 'home' && (
+                            <div>
+                                <StatsGrid stats={stats} />
+                                
+                                <h2 style={{ fontSize: 20, fontWeight: 700, color: '#111827', marginTop: 32, marginBottom: 16 }}>
+                                    My Upcoming Sessions
+                                </h2>
+                                
+                                {myUpcomingSessions.length === 0 ? (
+                                    <div style={{
+                                        background: 'white', borderRadius: 16, padding: 40,
+                                        textAlign: 'center', color: '#6B7280', border: '2px solid #E5E7EB'
+                                    }}>
+                                        No upcoming sessions
+                                    </div>
+                                ) : (
+                                    myUpcomingSessions.map(s => (
+                                        <SessionCard 
+                                            key={s.id} 
+                                            session={s} 
+                                            onClick={() => setSelected({ ...selected, session: s })}
+                                            billing={calculateBilling(s)}
+                                        />
+                                    ))
+                                )}
+                            </div>
+                        )}
+
+                        {activeTab === 'sessions' && (
+                            <div>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                                    <h2 style={{ fontSize: 20, fontWeight: 700, color: '#111827', margin: 0 }}>
+                                        All Sessions
+                                    </h2>
+                                    <div style={{ display: 'flex', gap: 8 }}>
+                                        <button onClick={() => setSessionFilter('all')} style={{
+                                            background: sessionFilter === 'all' ? '#3B82F6' : 'white',
+                                            color: sessionFilter === 'all' ? 'white' : '#6B7280',
+                                            border: '1px solid #D1D5DB',
+                                            borderRadius: 8,
+                                            padding: '6px 12px',
+                                            fontSize: 13,
+                                            fontWeight: 600,
+                                            cursor: 'pointer'
+                                        }}>All</button>
+                                        <button onClick={() => setSessionFilter('mine')} style={{
+                                            background: sessionFilter === 'mine' ? '#3B82F6' : 'white',
+                                            color: sessionFilter === 'mine' ? 'white' : '#6B7280',
+                                            border: '1px solid #D1D5DB',
+                                            borderRadius: 8,
+                                            padding: '6px 12px',
+                                            fontSize: 13,
+                                            fontWeight: 600,
+                                            cursor: 'pointer'
+                                        }}>My Sessions</button>
+                                    </div>
+                                </div>
+                                
+                                {/* Status Filters */}
+                                <div style={{ display: 'flex', gap: 6, marginBottom: 16, flexWrap: 'wrap' }}>
+                                    <button onClick={() => setStatusFilter('all')} style={{
+                                        background: statusFilter === 'all' ? '#E5E7EB' : 'white',
+                                        color: '#111827',
+                                        border: '1px solid #D1D5DB',
+                                        borderRadius: 6,
+                                        padding: '4px 10px',
+                                        fontSize: 12,
+                                        fontWeight: 600,
+                                        cursor: 'pointer'
+                                    }}>All</button>
+                                    <button onClick={() => setStatusFilter('today')} style={{
+                                        background: statusFilter === 'today' ? '#D1FAE5' : 'white',
+                                        color: statusFilter === 'today' ? '#065F46' : '#6B7280',
+                                        border: '1px solid #D1D5DB',
+                                        borderRadius: 6,
+                                        padding: '4px 10px',
+                                        fontSize: 12,
+                                        fontWeight: 600,
+                                        cursor: 'pointer'
+                                    }}>Today</button>
+                                    <button onClick={() => setStatusFilter('upcoming')} style={{
+                                        background: statusFilter === 'upcoming' ? '#DBEAFE' : 'white',
+                                        color: statusFilter === 'upcoming' ? '#1E40AF' : '#6B7280',
+                                        border: '1px solid #D1D5DB',
+                                        borderRadius: 6,
+                                        padding: '4px 10px',
+                                        fontSize: 12,
+                                        fontWeight: 600,
+                                        cursor: 'pointer'
+                                    }}>Upcoming</button>
+                                    <button onClick={() => setStatusFilter('unassigned')} style={{
+                                        background: statusFilter === 'unassigned' ? '#FEF3C7' : 'white',
+                                        color: statusFilter === 'unassigned' ? '#92400E' : '#6B7280',
+                                        border: '1px solid #D1D5DB',
+                                        borderRadius: 6,
+                                        padding: '4px 10px',
+                                        fontSize: 12,
+                                        fontWeight: 600,
+                                        cursor: 'pointer'
+                                    }}>Unassigned</button>
+                                    <button onClick={() => setStatusFilter('absences')} style={{
+                                        background: statusFilter === 'absences' ? '#FEE2E2' : 'white',
+                                        color: statusFilter === 'absences' ? '#991B1B' : '#6B7280',
+                                        border: '1px solid #D1D5DB',
+                                        borderRadius: 6,
+                                        padding: '4px 10px',
+                                        fontSize: 12,
+                                        fontWeight: 600,
+                                        cursor: 'pointer'
+                                    }}>Absences</button>
+                                    <button onClick={() => setStatusFilter('completed')} style={{
+                                        background: statusFilter === 'completed' ? '#E5E7EB' : 'white',
+                                        color: '#6B7280',
+                                        border: '1px solid #D1D5DB',
+                                        borderRadius: 6,
+                                        padding: '4px 10px',
+                                        fontSize: 12,
+                                        fontWeight: 600,
+                                        cursor: 'pointer'
+                                    }}>Completed</button>
+                                </div>
+                                
+                                {allFilteredSessions.map(s => (
+                                    <SessionCardWithInvite 
+                                        key={s.id} 
+                                        session={s} 
+                                        onClick={() => setSelected({ ...selected, session: s })}
+                                        billing={calculateBilling(s)}
+                                        coaches={data.coaches}
+                                        inviteCoach={inviteCoach}
+                                        isCoachAvailable={isCoachAvailable}
+                                        showInvite={true}
+                                    />
+                                ))
+                                }
+                            </div>
+                        )}
+
+                        {activeTab === 'coaches' && (
+                            <CoachesTab coaches={data.coaches} onClick={(c) => setSelected({ ...selected, coach: c })}
+                                getCoachStats={getCoachStats} />
+                        )}
+
+                        {activeTab === 'students' && (
+                            <StudentsTab students={data.students} sessions={data.sessions}
+                                onClick={(s) => setSelected({ ...selected, student: s })} />
+                        )}
+
+                        {activeTab === 'approvals' && (
+                            <ApprovalsTab approvals={data.approvals}
+                                onClick={(a) => setSelected({ ...selected, approval: a })} />
+                        )}
+
+                        {activeTab === 'sessions' && (
+                            <SessionsTab sessions={data.sessions} calendarView={calendarView}
+                                setCalendarView={setCalendarView} onClick={(s) => setSelected({ ...selected, session: s })}
+                                calculateBilling={calculateBilling} />
+                        )}
+                    </div>
+
+                    <BottomNav activeTab={activeTab} setActiveTab={setActiveTab} color="#3B82F6"
+                        tabs={['home', 'sessions', 'coaches', 'students', 'approvals']} />
+                </>
+            );
+        }
+
+        // ADMIN VIEW
+        function AdminView({ data, activeTab, setActiveTab, selected, setSelected, calculateBilling, calendarView, setCalendarView, sortSessionsByDate, inviteCoach, isCoachAvailable }) {
+            const [sessionFilter, setSessionFilter] = React.useState('all');
+            const [statusFilter, setStatusFilter] = React.useState('all');
+            
+            // Home tab: Only TODAY's sessions
+            const todaySessions = sortSessionsByDate(
+                data.sessions.filter(s => s.status === 'today')
+            );
+            
+            // Sessions tab: Filtered view
+            let filteredSessions = data.sessions;
+            
+            if (sessionFilter === 'mine') {
+                filteredSessions = filteredSessions.filter(s => s.coachId === null); // Admin has no sessions
+            }
+            
+            if (statusFilter === 'unassigned') {
+                filteredSessions = filteredSessions.filter(s => s.status === 'unassigned');
+            } else if (statusFilter === 'absences') {
+                filteredSessions = filteredSessions.filter(s => 
+                    s.status === 'completed' && s.students?.some(st => st.attended === false)
+                );
+            } else if (statusFilter === 'today') {
+                filteredSessions = filteredSessions.filter(s => s.status === 'today');
+            } else if (statusFilter === 'upcoming') {
+                filteredSessions = filteredSessions.filter(s => s.status === 'upcoming');
+            } else if (statusFilter === 'completed') {
+                filteredSessions = filteredSessions.filter(s => s.status === 'completed');
+            }
+            
+            const allFilteredSessions = sortSessionsByDate(filteredSessions);
+            
+            return (
+                <>
+                    <Header 
+                        title="Academy Admin" 
+                        subtitle="Operations & Front Desk"
+                        color="linear-gradient(135deg, #FF6B35 0%, #FF8E53 100%)"
+                    />
+
+                    <div style={{ padding: 20, paddingBottom: 100 }}>
+                        {activeTab === 'home' && (
+                            <div>
+                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 16, marginBottom: 32 }}>
+                                    <StatCard title="Today" value={data.sessions.filter(s => s.status === 'today').length}
+                                        icon="calendar" color="#FF6B35" />
+                                    <StatCard title="Students" value={data.students.length} icon="users" color="#3B82F6" />
+                                </div>
+                                <h2 style={{ fontSize: 20, fontWeight: 700, color: '#111827', marginBottom: 16 }}>
+                                    Today's Schedule
+                                </h2>
+                                {todaySessions.length === 0 ? (
+                                    <div style={{
+                                        background: 'white', borderRadius: 16, padding: 40,
+                                        textAlign: 'center', color: '#6B7280', border: '2px solid #E5E7EB'
+                                    }}>
+                                        No sessions scheduled for today
+                                    </div>
+                                ) : (
+                                    todaySessions.map(s => (
+                                        <SessionCard key={s.id} session={s} onClick={() => setSelected({ ...selected, session: s })}
+                                            billing={calculateBilling(s)} />
+                                    ))
+                                )}
+                            </div>
+                        )}
+
+                        {activeTab === 'students' && (
+                            <StudentsTab students={data.students} sessions={data.sessions}
+                                onClick={(s) => setSelected({ ...selected, student: s })} />
+                        )}
+
+                        {activeTab === 'sessions' && (
+                            <div>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                                    <h2 style={{ fontSize: 20, fontWeight: 700, color: '#111827', margin: 0 }}>
+                                        All Sessions
+                                    </h2>
+                                </div>
+                                
+                                {/* Status Filters */}
+                                <div style={{ display: 'flex', gap: 6, marginBottom: 16, flexWrap: 'wrap' }}>
+                                    <button onClick={() => setStatusFilter('all')} style={{
+                                        background: statusFilter === 'all' ? '#E5E7EB' : 'white',
+                                        color: '#111827',
+                                        border: '1px solid #D1D5DB',
+                                        borderRadius: 6,
+                                        padding: '4px 10px',
+                                        fontSize: 12,
+                                        fontWeight: 600,
+                                        cursor: 'pointer'
+                                    }}>All</button>
+                                    <button onClick={() => setStatusFilter('today')} style={{
+                                        background: statusFilter === 'today' ? '#D1FAE5' : 'white',
+                                        color: statusFilter === 'today' ? '#065F46' : '#6B7280',
+                                        border: '1px solid #D1D5DB',
+                                        borderRadius: 6,
+                                        padding: '4px 10px',
+                                        fontSize: 12,
+                                        fontWeight: 600,
+                                        cursor: 'pointer'
+                                    }}>Today</button>
+                                    <button onClick={() => setStatusFilter('upcoming')} style={{
+                                        background: statusFilter === 'upcoming' ? '#DBEAFE' : 'white',
+                                        color: statusFilter === 'upcoming' ? '#1E40AF' : '#6B7280',
+                                        border: '1px solid #D1D5DB',
+                                        borderRadius: 6,
+                                        padding: '4px 10px',
+                                        fontSize: 12,
+                                        fontWeight: 600,
+                                        cursor: 'pointer'
+                                    }}>Upcoming</button>
+                                    <button onClick={() => setStatusFilter('unassigned')} style={{
+                                        background: statusFilter === 'unassigned' ? '#FEF3C7' : 'white',
+                                        color: statusFilter === 'unassigned' ? '#92400E' : '#6B7280',
+                                        border: '1px solid #D1D5DB',
+                                        borderRadius: 6,
+                                        padding: '4px 10px',
+                                        fontSize: 12,
+                                        fontWeight: 600,
+                                        cursor: 'pointer'
+                                    }}>Unassigned</button>
+                                    <button onClick={() => setStatusFilter('absences')} style={{
+                                        background: statusFilter === 'absences' ? '#FEE2E2' : 'white',
+                                        color: statusFilter === 'absences' ? '#991B1B' : '#6B7280',
+                                        border: '1px solid #D1D5DB',
+                                        borderRadius: 6,
+                                        padding: '4px 10px',
+                                        fontSize: 12,
+                                        fontWeight: 600,
+                                        cursor: 'pointer'
+                                    }}>Absences</button>
+                                    <button onClick={() => setStatusFilter('completed')} style={{
+                                        background: statusFilter === 'completed' ? '#E5E7EB' : 'white',
+                                        color: '#6B7280',
+                                        border: '1px solid #D1D5DB',
+                                        borderRadius: 6,
+                                        padding: '4px 10px',
+                                        fontSize: 12,
+                                        fontWeight: 600,
+                                        cursor: 'pointer'
+                                    }}>Completed</button>
+                                </div>
+                                
+                                {allFilteredSessions.map(s => (
+                                    <SessionCardWithInvite 
+                                        key={s.id} 
+                                        session={s} 
+                                        onClick={() => setSelected({ ...selected, session: s })}
+                                        billing={calculateBilling(s)}
+                                        coaches={data.coaches}
+                                        inviteCoach={inviteCoach}
+                                        isCoachAvailable={isCoachAvailable}
+                                        showInvite={true}
+                                    />
+                                ))
+                                }
+                            </div>
+                        )}
+                    </div>
+
+                    <BottomNav activeTab={activeTab} setActiveTab={setActiveTab} color="#FF6B35"
+                        tabs={['home', 'students', 'sessions']} />
+                </>
+            );
+        }
+
+        // ASSISTANT COACH VIEW
+        function AssistantCoachView({ data, activeTab, setActiveTab, selected, setSelected, selfAssign, markAttendance, calculateBilling, sortSessionsByDate, respondToInvite }) {
+            const mySessions = sortSessionsByDate(data.sessions.filter(s => s.coachId === 'c2')); // Sarah
+            const openSessions = data.sessions.filter(s => s.canSelfAssign && !s.inviteStatus);
+            const invitedSessions = data.sessions.filter(s => s.inviteSent === 'c2' && s.inviteStatus === 'pending');
+
+            return (
+                <>
+                    <Header 
+                        title="Assistant Coach" 
+                        subtitle="Coach Sarah"
+                        color="linear-gradient(135deg, #60A5FA 0%, #3B82F6 100%)"
+                    />
+
+                    <div style={{ padding: 20, paddingBottom: 100 }}>
+                        {activeTab === 'home' && (
+                            <>
+                                {/* Pending Invites */}
+                                {invitedSessions.length > 0 && (
+                                    <div style={{ marginBottom: 32 }}>
+                                        <h2 style={{ fontSize: 20, fontWeight: 700, color: '#111827', marginBottom: 16 }}>
+                                            📨 Invitations ({invitedSessions.length})
+                                        </h2>
+                                        {invitedSessions.map(s => (
+                                            <div key={s.id} style={{
+                                                background: 'white', borderRadius: 16, padding: 16,
+                                                marginBottom: 12, border: '2px solid #3B82F6'
+                                            }}>
+                                                <div style={{ marginBottom: 12 }}>
+                                                    <div style={{ fontSize: 16, fontWeight: 700, color: '#111827', marginBottom: 6 }}>
+                                                        {s.type} Session
+                                                    </div>
+                                                    <div style={{ fontSize: 14, color: '#6B7280' }}>
+                                                        {s.date} • {s.time} • {s.venue}
+                                                    </div>
+                                                    <div style={{ fontSize: 13, color: '#3B82F6', marginTop: 4, fontWeight: 600 }}>
+                                                        💰 You'll earn: ${s.coachRate || 40}/hr
+                                                    </div>
+                                                </div>
+                                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                                                    <button onClick={() => respondToInvite(s.id, false)} style={{
+                                                        background: 'white', color: '#EF4444',
+                                                        border: '2px solid #EF4444', borderRadius: 10, padding: 12,
+                                                        fontSize: 14, fontWeight: 600, cursor: 'pointer'
+                                                    }}>
+                                                        Decline
+                                                    </button>
+                                                    <button onClick={() => respondToInvite(s.id, true)} style={{
+                                                        background: 'linear-gradient(135deg, #10B981 0%, #059669 100%)',
+                                                        color: 'white', border: 'none', borderRadius: 10, padding: 12,
+                                                        fontSize: 14, fontWeight: 600, cursor: 'pointer'
+                                                    }}>
+                                                        Accept
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+
+                                {openSessions.length > 0 && (
+                                    <div style={{ marginBottom: 32 }}>
+                                        <h2 style={{ fontSize: 20, fontWeight: 700, color: '#111827', marginBottom: 16 }}>
+                                            Available to Self-Assign ({openSessions.length})
+                                        </h2>
+                                        {openSessions.map(s => (
+                                            <div key={s.id} style={{
+                                                background: 'white', borderRadius: 16, padding: 16,
+                                                marginBottom: 12, border: '2px solid #DBEAFE'
+                                            }}>
+                                                <div style={{ marginBottom: 12 }}>
+                                                    <div style={{ fontSize: 16, fontWeight: 700, color: '#111827', marginBottom: 6 }}>
+                                                        {s.type} Session
+                                                    </div>
+                                                    <div style={{ fontSize: 14, color: '#6B7280' }}>
+                                                        {s.date} • {s.time} • {s.venue}
+                                                    </div>
+                                                </div>
+                                                <button onClick={() => selfAssign(s.id, 'c2')} style={{
+                                                    width: '100%', background: 'linear-gradient(135deg, #60A5FA 0%, #3B82F6 100%)',
+                                                    color: 'white', border: 'none', borderRadius: 10, padding: 12,
+                                                    fontSize: 14, fontWeight: 600, cursor: 'pointer'
+                                                }}>
+                                                    Self-Assign
+                                                </button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                                <h2 style={{ fontSize: 20, fontWeight: 700, color: '#111827', marginBottom: 16 }}>
+                                    My Sessions
+                                </h2>
+                                {mySessions.map(s => (
+                                    <SessionCard key={s.id} session={s} onClick={() => setSelected({ ...selected, session: s })}
+                                        billing={calculateBilling(s)} />
+                                ))}
+                            </>
+                        )}
+
+                        {activeTab === 'sessions' && (
+                            <>
+                                <h2 style={{ fontSize: 20, fontWeight: 700, color: '#111827', marginBottom: 16 }}>
+                                    All My Sessions
+                                </h2>
+                                {mySessions.length === 0 ? (
+                                    <div style={{
+                                        background: 'white', borderRadius: 16, padding: 40,
+                                        textAlign: 'center', color: '#6B7280'
+                                    }}>
+                                        No sessions found
+                                    </div>
+                                ) : (
+                                    mySessions.map(s => (
+                                        <SessionCard key={s.id} session={s} onClick={() => setSelected({ ...selected, session: s })}
+                                            billing={calculateBilling(s)} />
+                                    ))
+                                )}
+                            </>
+                        )}
+
+                        {activeTab === 'payments' && (
+                            <>
+                                <h2 style={{ fontSize: 20, fontWeight: 700, color: '#111827', marginBottom: 16 }}>
+                                    Earnings History
+                                </h2>
+                                <div style={{
+                                    background: 'white', borderRadius: 16, padding: 20,
+                                    marginBottom: 20, border: '2px solid #E5E7EB'
+                                }}>
+                                    <div style={{ fontSize: 16, fontWeight: 700, color: '#111827', marginBottom: 16 }}>
+                                        Summary
+                                    </div>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
+                                        <span style={{ fontSize: 14, color: '#6B7280' }}>Total Earned:</span>
+                                        <span style={{ fontSize: 18, fontWeight: 700, color: '#10B981' }}>
+                                            ${mySessions.filter(s => s.status === 'completed').length * 2 * 40}
+                                        </span>
+                                    </div>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
+                                        <span style={{ fontSize: 14, color: '#6B7280' }}>Sessions Completed:</span>
+                                        <span style={{ fontSize: 16, fontWeight: 700, color: '#111827' }}>
+                                            {mySessions.filter(s => s.status === 'completed').length}
+                                        </span>
+                                    </div>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
+                                        <span style={{ fontSize: 14, color: '#6B7280' }}>Total Hours:</span>
+                                        <span style={{ fontSize: 16, fontWeight: 700, color: '#111827' }}>
+                                            {mySessions.filter(s => s.status === 'completed').length * 2}hrs
+                                        </span>
+                                    </div>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: 12, borderTop: '1px solid #E5E7EB' }}>
+                                        <span style={{ fontSize: 14, color: '#6B7280' }}>Hourly Rate:</span>
+                                        <span style={{ fontSize: 16, fontWeight: 700, color: '#3B82F6' }}>$40/hr</span>
+                                    </div>
+                                </div>
+
+                                <h3 style={{ fontSize: 16, fontWeight: 700, color: '#111827', marginBottom: 12 }}>
+                                    Recent Earnings
+                                </h3>
+                                {mySessions.filter(s => s.status === 'completed').length === 0 ? (
+                                    <div style={{
+                                        background: 'white', borderRadius: 16, padding: 40,
+                                        textAlign: 'center', color: '#6B7280'
+                                    }}>
+                                        No earnings history yet
+                                    </div>
+                                ) : (
+                                    mySessions.filter(s => s.status === 'completed').map(session => (
+                                        <div key={session.id} style={{
+                                            background: 'white', borderRadius: 12, padding: 16,
+                                            marginBottom: 12, border: '1px solid #E5E7EB',
+                                            display: 'flex', justifyContent: 'space-between', alignItems: 'center'
+                                        }}>
+                                            <div>
+                                                <div style={{ fontSize: 14, fontWeight: 600, color: '#111827' }}>
+                                                    {session.date}
+                                                </div>
+                                                <div style={{ fontSize: 13, color: '#6B7280' }}>
+                                                    {session.type} • {session.time}
+                                                </div>
+                                                <div style={{ fontSize: 12, color: '#3B82F6', marginTop: 4 }}>
+                                                    2 hours @ $40/hr
+                                                </div>
+                                            </div>
+                                            <div style={{ textAlign: 'right' }}>
+                                                <div style={{ fontSize: 18, fontWeight: 700, color: '#10B981' }}>
+                                                    $80
+                                                </div>
+                                                <div style={{ fontSize: 11, color: '#6B7280' }}>
+                                                    Paid
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))
+                                )}
+                            </>
+                        )}
+
+                        {activeTab === 'profile' && (
+                            <ProfileView 
+                                coach={data.coaches.find(c => c.id === 'c2')} 
+                                sessions={data.sessions.filter(s => s.coachId === 'c2' && s.status === 'completed')} 
+                            />
+                        )}
+                    </div>
+
+                    <BottomNav activeTab={activeTab} setActiveTab={setActiveTab} color="#60A5FA"
+                        tabs={['home', 'sessions', 'payments', 'profile']} />
+                </>
+            );
+        }
+
+        // COACH VIEW (Milestone 1-2)
+        function CoachView({ data, activeTab, setActiveTab, selected, setSelected, markAttendance, calculateBilling, showNotifications, setShowNotifications, notificationCount, calendarView, setCalendarView }) {
+            return (
+                <>
+                    <Header 
+                        title="Coach Dashboard" 
+                        subtitle="Coach Melvin"
+                        color="linear-gradient(135deg, #1E40AF 0%, #3B82F6 100%)"
+                        badge={notificationCount}
+                        showNotifications={showNotifications}
+                        setShowNotifications={setShowNotifications}
+                    />
+
+                    {showNotifications && (
+                        <NotificationsPanel 
+                            notifications={data.notifications}
+                            onClose={() => setShowNotifications(false)}
+                        />
+                    )}
+
+                    <div style={{ padding: 20, paddingBottom: 100 }}>
+                        {activeTab === 'home' && (
+                            <>
+                                <h2 style={{ fontSize: 20, fontWeight: 700, color: '#111827', marginBottom: 16 }}>
+                                    Upcoming Sessions
+                                </h2>
+                                {data.sessions.filter(s => s.status !== 'completed' && s.coachId === 'c1').map(s => (
+                                    <SessionCard key={s.id} session={s} onClick={() => setSelected({ ...selected, session: s })}
+                                        billing={calculateBilling(s)} />
+                                ))}
+                            </>
+                        )}
+
+                        {activeTab === 'sessions' && (
+                            <SessionsTab sessions={data.sessions.filter(s => s.coachId === 'c1')} 
+                                calendarView={calendarView} setCalendarView={setCalendarView}
+                                onClick={(s) => setSelected({ ...selected, session: s })}
+                                calculateBilling={calculateBilling} />
+                        )}
+
+                        {activeTab === 'profile' && (
+                            <ProfileView coach={data.coaches.find(c => c.id === 'c1')} 
+                                sessions={data.sessions.filter(s => s.coachId === 'c1' && s.status === 'completed')} />
+                        )}
+                    </div>
+
+                    <BottomNav activeTab={activeTab} setActiveTab={setActiveTab} color="#3B82F6"
+                        tabs={['home', 'sessions', 'payments', 'profile']} />
+                </>
+            );
+        }
+
+        // STUDENT VIEW
+        function StudentView({ data, activeTab, setActiveTab, selected, setSelected, getStudentStats, calculateBilling }) {
+            const studentId = 's1'; // Ryan Ho
+            const student = data.students.find(s => s.id === studentId);
+            const stats = getStudentStats(studentId);
+            
+            // Sort sessions by date (latest first)
+            const mySessions = data.sessions
+                .filter(s => s.students?.some(st => st.id === studentId))
+                .sort((a, b) => new Date(b.date) - new Date(a.date));
+            const completedSessions = mySessions.filter(s => s.status === 'completed');
+            const upcomingSessions = mySessions.filter(s => s.status !== 'completed');
+
+            return (
+                <>
+                    <Header 
+                        title="My Sessions" 
+                        subtitle={student?.name || 'Student'}
+                        color="linear-gradient(135deg, #059669 0%, #10B981 100%)"
+                    />
+
+                    <div style={{ padding: 20, paddingBottom: 100 }}>
+                        {activeTab === 'home' && (
+                            <>
+                                <div style={{
+                                    background: 'white', borderRadius: 16, padding: 20,
+                                    marginBottom: 24, border: '2px solid #E5E7EB'
+                                }}>
+                                    <div style={{ fontSize: 14, color: '#6B7280', marginBottom: 8 }}>Total Paid</div>
+                                    <div style={{ fontSize: 32, fontWeight: 700, color: '#10B981', marginBottom: 16 }}>
+                                        ${stats.totalPaid}
+                                    </div>
+                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                                        <div>
+                                            <div style={{ fontSize: 12, color: '#6B7280' }}>Sessions</div>
+                                            <div style={{ fontSize: 20, fontWeight: 700, color: '#111827' }}>
+                                                {stats.sessionsAttended}
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <div style={{ fontSize: 12, color: '#6B7280' }}>Pending</div>
+                                            <div style={{ fontSize: 20, fontWeight: 700, color: '#F59E0B' }}>
+                                                ${stats.totalOwed}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <h2 style={{ fontSize: 20, fontWeight: 700, color: '#111827', marginBottom: 16 }}>
+                                    My Sessions
+                                </h2>
+                                {mySessions.map(s => (
+                                    <SessionCard key={s.id} session={s} onClick={() => setSelected({ ...selected, session: s })}
+                                        billing={calculateBilling(s)} studentId={studentId} />
+                                ))}
+                            </>
+                        )}
+
+                        {activeTab === 'sessions' && (
+                            <>
+                                <h2 style={{ fontSize: 20, fontWeight: 700, color: '#111827', marginBottom: 16 }}>
+                                    All My Sessions
+                                </h2>
+                                {mySessions.length === 0 ? (
+                                    <div style={{
+                                        background: 'white', borderRadius: 16, padding: 40,
+                                        textAlign: 'center', color: '#6B7280'
+                                    }}>
+                                        No sessions found
+                                    </div>
+                                ) : (
+                                    mySessions.map(s => (
+                                        <SessionCard key={s.id} session={s} onClick={() => setSelected({ ...selected, session: s })}
+                                            billing={calculateBilling(s)} studentId={studentId} />
+                                    ))
+                                )}
+                            </>
+                        )}
+
+                        {activeTab === 'payments' && (
+                            <>
+                                <h2 style={{ fontSize: 20, fontWeight: 700, color: '#111827', marginBottom: 16 }}>
+                                    Payment History
+                                </h2>
+                                <div style={{
+                                    background: 'white', borderRadius: 16, padding: 20,
+                                    marginBottom: 20, border: '2px solid #E5E7EB'
+                                }}>
+                                    <div style={{ fontSize: 16, fontWeight: 700, color: '#111827', marginBottom: 16 }}>
+                                        Summary
+                                    </div>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
+                                        <span style={{ fontSize: 14, color: '#6B7280' }}>Total Charged:</span>
+                                        <span style={{ fontSize: 16, fontWeight: 700, color: '#111827' }}>${stats.totalPaid}</span>
+                                    </div>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
+                                        <span style={{ fontSize: 14, color: '#6B7280' }}>Sessions Attended:</span>
+                                        <span style={{ fontSize: 16, fontWeight: 700, color: '#111827' }}>{stats.sessionsAttended}</span>
+                                    </div>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: 12, borderTop: '1px solid #E5E7EB' }}>
+                                        <span style={{ fontSize: 14, fontWeight: 600, color: '#F59E0B' }}>Outstanding:</span>
+                                        <span style={{ fontSize: 18, fontWeight: 700, color: '#F59E0B' }}>${stats.totalOwed}</span>
+                                    </div>
+                                </div>
+
+                                <h3 style={{ fontSize: 16, fontWeight: 700, color: '#111827', marginBottom: 12 }}>
+                                    Recent Payments
+                                </h3>
+                                {completedSessions.length === 0 ? (
+                                    <div style={{
+                                        background: 'white', borderRadius: 16, padding: 40,
+                                        textAlign: 'center', color: '#6B7280'
+                                    }}>
+                                        No payment history yet
+                                    </div>
+                                ) : (
+                                    completedSessions.map(session => {
+                                        const studentInSession = session.students.find(st => st.id === studentId);
+                                        const charge = studentInSession?.attended === true ? session.pricePerStudent : 0;
+                                        return (
+                                            <div key={session.id} style={{
+                                                background: 'white', borderRadius: 12, padding: 16,
+                                                marginBottom: 12, border: '1px solid #E5E7EB',
+                                                display: 'flex', justifyContent: 'space-between', alignItems: 'center'
+                                            }}>
+                                                <div>
+                                                    <div style={{ fontSize: 14, fontWeight: 600, color: '#111827' }}>
+                                                        {session.date}
+                                                    </div>
+                                                    <div style={{ fontSize: 12, color: '#6B7280' }}>
+                                                        {session.type} • {session.coach}
+                                                    </div>
+                                                    <div style={{
+                                                        fontSize: 11,
+                                                        color: studentInSession?.attended ? '#065F46' : '#991B1B',
+                                                        marginTop: 4
+                                                    }}>
+                                                        {studentInSession?.attended ? '✓ Attended' : '✗ Absent'}
+                                                    </div>
+                                                </div>
+                                                <div style={{ textAlign: 'right' }}>
+                                                    <div style={{
+                                                        fontSize: 18,
+                                                        fontWeight: 700,
+                                                        color: charge > 0 ? '#10B981' : '#6B7280'
+                                                    }}>
+                                                        ${charge}
+                                                    </div>
+                                                    {charge > 0 && (
+                                                        <div style={{
+                                                            fontSize: 11,
+                                                            fontWeight: 600,
+                                                            color: session.paid ? '#065F46' : '#F59E0B',
+                                                            marginTop: 4
+                                                        }}>
+                                                            {session.paid ? 'Paid' : 'Unpaid'}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        );
+                                    })
+                                )}
+                            </>
+                        )}
+
+                        {activeTab === 'profile' && (
+                            <StudentProfileView student={student} />
+                        )}
+                    </div>
+
+                    <BottomNav activeTab={activeTab} setActiveTab={setActiveTab} color="#10B981"
+                        tabs={['home', 'sessions', 'payments', 'profile']} />
+                </>
+            );
+        }
+
+        function StudentProfileView({ student }) {
+            return (
+                <>
+                    <h2 style={{ fontSize: 20, fontWeight: 700, margin: '0 0 20px', color: '#111827' }}>
+                        My Profile
+                    </h2>
+
+                    <div style={{
+                        background: 'white', borderRadius: 16, padding: 24, marginBottom: 20,
+                        border: '2px solid #E5E7EB'
+                    }}>
+                        <div style={{
+                            width: 80, height: 80, borderRadius: '50%',
+                            background: 'linear-gradient(135deg, #10B981 0%, #059669 100%)',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            color: 'white', fontSize: 32, fontWeight: 700, marginBottom: 20
+                        }}>
+                            {student.name.split(' ').map(n => n[0]).join('')}
+                        </div>
+
+                        <div style={{ marginBottom: 24 }}>
+                            <div style={{ fontSize: 22, fontWeight: 700, color: '#111827', marginBottom: 4 }}>
+                                {student.name}
+                            </div>
+                            <div style={{ fontSize: 14, color: '#6B7280' }}>
+                                Student
+                            </div>
+                        </div>
+
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 20 }}>
+                            <DetailRow label="Email:" value={student.email} />
+                            <DetailRow label="Mobile:" value={student.mobile} />
+                            <DetailRow label="Level:" value={student.level} />
+                            <DetailRow label="Status:" value={student.status === 'active' ? 'Active' : 'Inactive'} />
+                        </div>
+                    </div>
+                </>
+            );
+        }
+
+        // SHARED COMPONENTS
+        function Header({ title, subtitle, color, badge, showNotifications, setShowNotifications }) {
+            return (
+                <div style={{
+                    background: color, color: 'white', padding: '24px 20px 32px',
+                    borderRadius: '0 0 24px 24px', boxShadow: '0 4px 20px rgba(0,0,0,0.15)'
+                }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 20 }}>
+                        <h1 style={{ fontSize: 28, fontWeight: 700 }}>Huddle</h1>
+                        <div style={{ display: 'flex', gap: 12, position: 'relative' }}>
+                            {setShowNotifications && (
+                                <div style={{ position: 'relative', cursor: 'pointer' }}
+                                     onClick={() => setShowNotifications(!showNotifications)}>
+                                    <Icon name="bell" size={24} />
+                                    {badge > 0 && <span className="notification-badge">{badge}</span>}
+                                </div>
+                            )}
+                            <Icon name="user" size={24} style={{ cursor: 'pointer' }} />
+                        </div>
+                    </div>
+                    <div style={{ fontSize: 16, opacity: 0.9 }}>{title}</div>
+                    <div style={{ fontSize: 14, opacity: 0.8 }}>{subtitle}</div>
+                </div>
+            );
+        }
+
+        function NotificationsPanel({ notifications, onClose }) {
+            return (
+                <div style={{
+                    position: 'fixed', top: 70, right: 10, width: 320, maxHeight: 400,
+                    background: 'white', borderRadius: 16, boxShadow: '0 10px 40px rgba(0,0,0,0.2)',
+                    zIndex: 999, overflow: 'hidden', animation: 'slideUp 0.3s'
+                }}>
+                    <div style={{
+                        padding: 16, borderBottom: '1px solid #E5E7EB',
+                        display: 'flex', justifyContent: 'space-between', alignItems: 'center'
+                    }}>
+                        <h3 style={{ fontSize: 16, fontWeight: 700, color: '#111827' }}>Notifications</h3>
+                        <button onClick={onClose} style={{
+                            background: 'transparent', border: 'none', cursor: 'pointer'
+                        }}>
+                            <Icon name="x" size={20} color="#6B7280" />
+                        </button>
+                    </div>
+                    <div style={{ maxHeight: 320, overflowY: 'auto' }}>
+                        {notifications.length === 0 ? (
+                            <div style={{ padding: 32, textAlign: 'center', color: '#6B7280', fontSize: 14 }}>
+                                No notifications
+                            </div>
+                        ) : (
+                            notifications.map(n => (
+                                <div key={n.id} style={{
+                                    padding: 16, borderBottom: '1px solid #F3F4F6',
+                                    background: n.read ? 'white' : '#FEF3C7'
+                                }}>
+                                    <div style={{
+                                        fontSize: 11, fontWeight: 600, color: '#EF4444',
+                                        textTransform: 'uppercase', marginBottom: 6
+                                    }}>
+                                        ⚠️ ABSENCE ALERT
+                                    </div>
+                                    <div style={{ fontSize: 13, color: '#111827', marginBottom: 4, fontWeight: 600 }}>
+                                        {n.message}
+                                    </div>
+                                    <div style={{ fontSize: 12, color: '#6B7280' }}>
+                                        {n.date} • Session #{n.sessionId}
+                                    </div>
+                                </div>
+                            ))
+                        )}
+                    </div>
+                </div>
+            );
+        }
+
+        function StatsGrid({ stats }) {
+            return (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 16, marginBottom: 32 }}>
+                    <StatCard title="Revenue" value={`$${stats.revenue}`} icon="dollar-sign" color="#10B981" />
+                    {stats.profit !== undefined && (
+                        <StatCard title="Your Profit" value={`$${stats.profit}`} subtitle="From asst coaches" icon="trending-up" color="#8B5CF6" />
+                    )}
+                    <StatCard title="Students" value={stats.students} icon="users" color="#3B82F6" />
+                    <StatCard title="Coaches" value={stats.coaches} icon="user-check" color="#F59E0B" />
+                    <StatCard title="Attendance" value={`${stats.attendance}%`} icon="check-circle" color="#6B7280" />
+                </div>
+            );
+        }
+
+        function StatCard({ title, value, icon, color }) {
+            return (
+                <div style={{
+                    background: 'white', borderRadius: 16, padding: 20,
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.06)', border: '2px solid #E5E7EB'
+                }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
+                        <div>
+                            <div style={{ fontSize: 13, color: '#6B7280', marginBottom: 8 }}>{title}</div>
+                            <div style={{ fontSize: 32, fontWeight: 700, color: '#111827' }}>{value}</div>
+                        </div>
+                        <div style={{
+                            width: 48, height: 48, borderRadius: 12, background: color,
+                            display: 'flex', alignItems: 'center', justifyContent: 'center'
+                        }}>
+                            <Icon name={icon} size={24} color="white" />
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        function SessionCard({ session, onClick, billing, studentId = null }) {
+            const isToday = session.status === 'today';
+            // If studentId provided (student view), only show absence if THIS student was absent
+            // Otherwise (coach/admin view), show if ANY student was absent
+            const hasAbsences = studentId 
+                ? session.students?.find(s => s.id === studentId)?.attended === false
+                : session.students?.some(s => s.attended === false);
+
+            return (
+                <div onClick={onClick} style={{
+                    background: 'white', borderRadius: 16, padding: 16, marginBottom: 12,
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
+                    border: `2px solid ${isToday ? '#10B981' : hasAbsences ? '#FDE047' : '#E5E7EB'}`,
+                    cursor: 'pointer', transition: 'transform 0.2s'
+                }}
+                onMouseOver={(e) => e.currentTarget.style.transform = 'translateY(-2px)'}
+                onMouseOut={(e) => e.currentTarget.style.transform = 'translateY(0)'}>
+                    {isToday && (
+                        <div style={{
+                            background: '#D1FAE5', color: '#065F46', fontSize: 11, fontWeight: 700,
+                            padding: '4px 10px', borderRadius: 6, display: 'inline-block', marginBottom: 12
+                        }}>TODAY</div>
+                    )}
+                    {hasAbsences && (
+                        <div style={{
+                            background: '#FEF3C7', color: '#92400E', fontSize: 11, fontWeight: 700,
+                            padding: '4px 10px', borderRadius: 6, display: 'inline-block',
+                            marginBottom: 12, marginLeft: isToday ? 8 : 0
+                        }}>⚠️ ABSENCES</div>
+                    )}
+                    {session.status === 'unassigned' && !session.inviteStatus && (
+                        <div style={{
+                            background: '#FEF3C7', color: '#92400E', fontSize: 11, fontWeight: 700,
+                            padding: '4px 10px', borderRadius: 6, display: 'inline-block', marginBottom: 12
+                        }}>OPEN</div>
+                    )}
+                    {session.inviteStatus === 'pending' && (
+                        <div style={{
+                            background: '#DBEAFE', color: '#1E40AF', fontSize: 11, fontWeight: 700,
+                            padding: '4px 10px', borderRadius: 6, display: 'inline-block', marginBottom: 12
+                        }}>⏳ Waiting for {session.invitedCoachName}</div>
+                    )}
+
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
+                        <div style={{ flex: 1 }}>
+                            <div style={{ fontSize: 16, fontWeight: 700, color: '#111827', marginBottom: 6 }}>
+                                {session.coach || (session.invitedCoachName ? `Pending: ${session.invitedCoachName}` : 'Unassigned')}
+                            </div>
+                            <div style={{ fontSize: 14, color: '#6B7280', marginBottom: 4 }}>
+                                {session.type} • {session.date}
+                            </div>
+                            <div style={{ fontSize: 13, color: '#6B7280' }}>
+                                {session.time} • {session.venue}
+                            </div>
+                        </div>
+                        <div style={{ textAlign: 'right' }}>
+                            {session.status === 'completed' && billing && (
+                                <>
+                                    <div style={{ fontSize: 18, fontWeight: 700, color: '#3B82F6' }}>
+                                        ${billing.total}
+                                    </div>
+                                    {billing.total < session.basePrice && (
+                                        <div style={{ fontSize: 11, color: '#EF4444', textDecoration: 'line-through' }}>
+                                            ${session.basePrice}
+                                        </div>
+                                    )}
+                                </>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        function SessionCardWithInvite({ session, onClick, billing, studentId = null, coaches, inviteCoach, isCoachAvailable, showInvite }) {
+            const isToday = session.status === 'today';
+            const hasAbsences = studentId 
+                ? session.students?.find(s => s.id === studentId)?.attended === false
+                : session.students?.some(s => s.attended === false);
+
+            // Softer, eye-friendly colors
+            const borderColor = isToday ? '#34D399' : hasAbsences ? '#FBBF24' : session.status === 'unassigned' ? '#60A5FA' : '#E5E7EB';
+            const bgColor = 'white';
+
+            return (
+                <div style={{
+                    background: bgColor, borderRadius: 16, padding: 16, marginBottom: 12,
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
+                    border: `2px solid ${borderColor}`,
+                    cursor: 'pointer', transition: 'all 0.2s'
+                }}
+                onMouseOver={(e) => e.currentTarget.style.transform = 'translateY(-2px)'}
+                onMouseOut={(e) => e.currentTarget.style.transform = 'translateY(0)'}
+                onClick={onClick}>
+                    {isToday && (
+                        <div style={{
+                            background: 'linear-gradient(135deg, #34D399 0%, #10B981 100%)', color: 'white', fontSize: 11, fontWeight: 700,
+                            padding: '4px 10px', borderRadius: 6, display: 'inline-block', marginBottom: 12
+                        }}>TODAY</div>
+                    )}
+                    {hasAbsences && (
+                        <div style={{
+                            background: 'linear-gradient(135deg, #FBBF24 0%, #F59E0B 100%)', color: 'white', fontSize: 11, fontWeight: 700,
+                            padding: '4px 10px', borderRadius: 6, display: 'inline-block',
+                            marginBottom: 12, marginLeft: isToday ? 8 : 0
+                        }}>⚠️ ABSENCES</div>
+                    )}
+                    {session.status === 'unassigned' && !session.inviteStatus && (
+                        <div style={{
+                            background: 'linear-gradient(135deg, #60A5FA 0%, #3B82F6 100%)', color: 'white', fontSize: 11, fontWeight: 700,
+                            padding: '4px 10px', borderRadius: 6, display: 'inline-block', marginBottom: 12
+                        }}>OPEN</div>
+                    )}
+                    {session.inviteStatus === 'pending' && (
+                        <div style={{
+                            background: 'linear-gradient(135deg, #A78BFA 0%, #8B5CF6 100%)', color: 'white', fontSize: 11, fontWeight: 700,
+                            padding: '4px 10px', borderRadius: 6, display: 'inline-block', marginBottom: 12
+                        }}>⏳ Waiting for {session.invitedCoachName}</div>
+                    )}
+
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
+                        <div style={{ flex: 1 }}>
+                            <div style={{ fontSize: 16, fontWeight: 700, color: '#111827', marginBottom: 6 }}>
+                                {session.coach || (session.invitedCoachName ? `Pending: ${session.invitedCoachName}` : 'Unassigned')}
+                            </div>
+                            <div style={{ fontSize: 14, color: '#6B7280', marginBottom: 4 }}>
+                                {session.type} • {session.date}
+                            </div>
+                            <div style={{ fontSize: 13, color: '#6B7280' }}>
+                                {session.time} • {session.venue}
+                            </div>
+                        </div>
+                        <div style={{ textAlign: 'right' }}>
+                            {session.status === 'completed' && billing && (
+                                <>
+                                    <div style={{ fontSize: 18, fontWeight: 700, color: '#3B82F6' }}>
+                                        ${billing.total}
+                                    </div>
+                                    {billing.total < session.basePrice && (
+                                        <div style={{ fontSize: 11, color: '#EF4444', textDecoration: 'line-through' }}>
+                                            ${session.basePrice}
+                                        </div>
+                                    )}
+                                </>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* Invite buttons inside card */}
+                    {showInvite && session.status === 'unassigned' && !session.inviteStatus && coaches && (
+                        <div onClick={(e) => e.stopPropagation()} style={{
+                            background: '#F9FAFB',
+                            borderRadius: 8,
+                            padding: 12,
+                            marginTop: 8,
+                            borderTop: '1px solid #E5E7EB'
+                        }}>
+                            <div style={{ fontSize: 12, fontWeight: 600, color: '#6B7280', marginBottom: 8 }}>
+                                💬 Invite coaches:
+                            </div>
+                            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                                {/* Invite All button */}
+                                {(() => {
+                                    const availableCoaches = coaches.filter(c => 
+                                        c.role === 'assistantCoach' && isCoachAvailable(c.id, session.date, session.time)
+                                    );
+                                    return availableCoaches.length > 0 && (
+                                        <button
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                availableCoaches.forEach(coach => 
+                                                    inviteCoach(session.id, coach.id, coach.name)
+                                                );
+                                            }}
+                                            style={{
+                                                background: 'linear-gradient(135deg, #10B981 0%, #059669 100%)',
+                                                color: 'white',
+                                                border: 'none',
+                                                borderRadius: 6,
+                                                padding: '6px 10px',
+                                                fontSize: 12,
+                                                fontWeight: 600,
+                                                cursor: 'pointer'
+                                            }}
+                                        >
+                                            ✉️ Invite All ({availableCoaches.length})
+                                        </button>
+                                    );
+                                })()}
+                                
+                                {/* Individual coach buttons */}
+                                {coaches.filter(c => c.role === 'assistantCoach').map(coach => {
+                                    const available = isCoachAvailable(coach.id, session.date, session.time);
+                                    return (
+                                        <button
+                                            key={coach.id}
+                                            disabled={!available}
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                inviteCoach(session.id, coach.id, coach.name);
+                                            }}
+                                            style={{
+                                                background: available ? 'linear-gradient(135deg, #3B82F6 0%, #2563EB 100%)' : '#E5E7EB',
+                                                color: available ? 'white' : '#9CA3AF',
+                                                border: 'none',
+                                                borderRadius: 6,
+                                                padding: '6px 10px',
+                                                fontSize: 12,
+                                                fontWeight: 600,
+                                                cursor: available ? 'pointer' : 'not-allowed'
+                                            }}
+                                        >
+                                            {coach.name.replace('Coach ', '')} {!available && '(Busy)'}
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        }
+
+        function SessionsTab({ sessions, calendarView, setCalendarView, onClick, calculateBilling }) {
+            // Sort sessions by date (latest first)
+            const sortedSessions = [...sessions].sort((a, b) => new Date(b.date) - new Date(a.date));
+            
+            return (
+                <>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                        <h2 style={{ fontSize: 20, fontWeight: 700, color: '#111827', margin: 0 }}>All Sessions</h2>
+                        <div style={{ display: 'flex', gap: 8 }}>
+                            <button onClick={() => setCalendarView('list')} style={{
+                                background: calendarView === 'list' ? '#3B82F6' : 'white',
+                                color: calendarView === 'list' ? 'white' : '#6B7280',
+                                border: '1px solid #D1D5DB', borderRadius: 8, padding: '8px 12px',
+                                cursor: 'pointer'
+                            }}>
+                                <Icon name="list" size={16} />
+                            </button>
+                            <button onClick={() => setCalendarView('calendar')} style={{
+                                background: calendarView === 'calendar' ? '#3B82F6' : 'white',
+                                color: calendarView === 'calendar' ? 'white' : '#6B7280',
+                                border: '1px solid #D1D5DB', borderRadius: 8, padding: '8px 12px',
+                                cursor: 'pointer'
+                            }}>
+                                <Icon name="calendar" size={16} />
+                            </button>
+                        </div>
+                    </div>
+
+                    {calendarView === 'list' ? (
+                        sortedSessions.map(s => (
+                            <SessionCard key={s.id} session={s} onClick={() => onClick(s)}
+                                billing={calculateBilling(s)} />
+                        ))
+                    ) : (
+                        <CalendarView sessions={sortedSessions} onClick={onClick} calculateBilling={calculateBilling} />
+                    )}
+                </>
+            );
+        }
+
+        function CalendarView({ sessions, onClick, calculateBilling }) {
+            const byDate = sessions.reduce((acc, s) => {
+                if (!acc[s.date]) acc[s.date] = [];
+                acc[s.date].push(s);
+                return acc;
+            }, {});
+
+            const sortedDates = Object.keys(byDate).sort();
+
+            return (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+                    {sortedDates.map(date => (
+                        <div key={date}>
+                            <div style={{
+                                fontSize: 16, fontWeight: 700, color: '#111827',
+                                padding: '12px 16px', background: '#F9FAFB', borderRadius: 12,
+                                marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8
+                            }}>
+                                <Icon name="calendar" size={18} />
+                                {date}
+                                <span style={{ fontSize: 13, fontWeight: 600, color: '#6B7280', marginLeft: 'auto' }}>
+                                    {byDate[date].length} session{byDate[date].length !== 1 ? 's' : ''}
+                                </span>
+                            </div>
+                            {byDate[date].map(s => (
+                                <SessionCard key={s.id} session={s} onClick={() => onClick(s)}
+                                    billing={calculateBilling(s)} />
+                            ))}
+                        </div>
+                    ))}
+                </div>
+            );
+        }
+
+        function CoachesTab({ coaches, onClick, getCoachStats }) {
+            return (
+                <>
+                    <h2 style={{ fontSize: 20, fontWeight: 700, color: '#111827', marginBottom: 16 }}>
+                        Coaches ({coaches.length})
+                    </h2>
+                    {coaches.map(c => {
+                        const stats = getCoachStats(c.id);
+                        return (
+                            <div key={c.id} onClick={() => onClick(c)} style={{
+                                background: 'white', borderRadius: 16, padding: 16, marginBottom: 12,
+                                border: '2px solid #E5E7EB', cursor: 'pointer'
+                            }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                    <div>
+                                        <div style={{ fontSize: 16, fontWeight: 700, color: '#111827', marginBottom: 4 }}>
+                                            {c.name}
+                                        </div>
+                                        <div style={{ fontSize: 13, color: '#6B7280' }}>
+                                            {c.role === 'headCoach' ? '🏆 Head' : '🎾 Assistant'} • ${c.rate}/session
+                                        </div>
+                                    </div>
+                                    <div style={{ textAlign: 'right' }}>
+                                        <div style={{ fontSize: 20, fontWeight: 700, color: '#3B82F6' }}>
+                                            ${stats.earnings}
+                                        </div>
+                                        <div style={{ fontSize: 12, color: '#6B7280' }}>
+                                            {stats.sessionsCount} sessions
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        );
+                    })}
+                </>
+            );
+        }
+
+        function StudentsTab({ students, sessions, onClick }) {
+            return (
+                <>
+                    <h2 style={{ fontSize: 20, fontWeight: 700, color: '#111827', marginBottom: 16 }}>
+                        Students ({students.length})
+                    </h2>
+                    {students.map(student => {
+                        const studentSessions = sessions.filter(s => 
+                            s.students?.some(st => st.id === student.id) && s.status === 'completed'
+                        );
+                        const attended = studentSessions.filter(s => 
+                            s.students.find(st => st.id === student.id)?.attended === true
+                        ).length;
+
+                        return (
+                            <div key={student.id} onClick={() => onClick(student)} style={{
+                                background: 'white', borderRadius: 16, padding: 16, marginBottom: 12,
+                                border: '2px solid #E5E7EB', cursor: 'pointer'
+                            }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                    <div>
+                                        <div style={{ fontSize: 16, fontWeight: 700, color: '#111827', marginBottom: 4 }}>
+                                            {student.name}
+                                        </div>
+                                        <div style={{ fontSize: 13, color: '#6B7280' }}>
+                                            {student.level} • {attended} sessions attended
+                                        </div>
+                                    </div>
+                                    <div style={{
+                                        padding: '6px 12px', borderRadius: 6, fontSize: 12, fontWeight: 600,
+                                        background: '#D1FAE5', color: '#065F46'
+                                    }}>
+                                        Active
+                                    </div>
+                                </div>
+                            </div>
+                        );
+                    })}
+                </>
+            );
+        }
+
+        function ApprovalsTab({ approvals, onClick }) {
+            return (
+                <>
+                    <h2 style={{ fontSize: 20, fontWeight: 700, color: '#111827', marginBottom: 16 }}>
+                        Pending Approvals ({approvals.length})
+                    </h2>
+                    {approvals.length === 0 ? (
+                        <div style={{
+                            background: 'white', borderRadius: 16, padding: 40, textAlign: 'center'
+                        }}>
+                            <Icon name="check-circle" size={48} color="#10B981" style={{ marginBottom: 16 }} />
+                            <div style={{ fontSize: 16, fontWeight: 600, color: '#111827' }}>All caught up!</div>
+                        </div>
+                    ) : (
+                        approvals.map(a => (
+                            <div key={a.id} onClick={() => onClick(a)} style={{
+                                background: 'white', borderRadius: 16, padding: 16, marginBottom: 12,
+                                border: '2px solid #FDE047', cursor: 'pointer'
+                            }}>
+                                <div style={{
+                                    fontSize: 11, fontWeight: 600, color: '#F59E0B',
+                                    textTransform: 'uppercase', marginBottom: 8
+                                }}>
+                                    {a.type === 'rateChange' ? '💰 Rate Change' : '💸 Payout'}
+                                </div>
+                                <div style={{ fontSize: 16, fontWeight: 700, color: '#111827', marginBottom: 4 }}>
+                                    {a.coachName}
+                                </div>
+                                <div style={{ fontSize: 13, color: '#6B7280' }}>
+                                    {a.type === 'rateChange' ? `$${a.current} → $${a.proposed}` : `$${a.amount} for ${a.period}`}
+                                </div>
+                            </div>
+                        ))
+                    )}
+                </>
+            );
+        }
+
+        function ProfileView({ coach, sessions }) {
+            const earnings = sessions.reduce((sum, s) => sum + s.coachRate, 0);
+
+            return (
+                <>
+                    <h2 style={{ fontSize: 20, fontWeight: 700, margin: '0 0 20px', color: '#111827' }}>
+                        Coach Profile
+                    </h2>
+
+                    <div style={{
+                        background: 'white', borderRadius: 16, padding: 24, marginBottom: 20,
+                        border: '2px solid #E5E7EB'
+                    }}>
+                        <div style={{
+                            width: 80, height: 80, borderRadius: '50%',
+                            background: 'linear-gradient(135deg, #3B82F6 0%, #2563EB 100%)',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            color: 'white', fontSize: 32, fontWeight: 700, marginBottom: 20
+                        }}>
+                            {coach.name.split(' ').map(n => n[0]).join('')}
+                        </div>
+
+                        <div style={{ marginBottom: 24 }}>
+                            <div style={{ fontSize: 22, fontWeight: 700, color: '#111827', marginBottom: 4 }}>
+                                {coach.name}
+                            </div>
+                            <div style={{ fontSize: 14, color: '#6B7280' }}>
+                                {coach.role === 'headCoach' ? 'Head Coach' : 'Assistant Coach'}
+                            </div>
+                        </div>
+
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 20 }}>
+                            <DetailRow label="Email:" value={coach.email} />
+                            <DetailRow label="Mobile:" value={coach.mobile} />
+                            <DetailRow label="Rate:" value={`$${coach.rate}/session`} />
+                            <DetailRow label="Earnings:" value={`$${earnings}`} />
+                        </div>
+
+                        <div style={{ marginBottom: 20 }}>
+                            <div style={{ fontSize: 14, fontWeight: 600, color: '#6B7280', marginBottom: 8 }}>
+                                Age Groups:
+                            </div>
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                                {coach.ageGroups.map(age => (
+                                    <span key={age} style={{
+                                        background: '#DBEAFE', color: '#1E40AF',
+                                        padding: '6px 12px', borderRadius: 6, fontSize: 13, fontWeight: 600
+                                    }}>{age}</span>
+                                ))}
+                            </div>
+                        </div>
+
+                        <div>
+                            <div style={{ fontSize: 14, fontWeight: 600, color: '#6B7280', marginBottom: 8 }}>
+                                Levels:
+                            </div>
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                                {coach.levels.map(level => (
+                                    <span key={level} style={{
+                                        background: '#D1FAE5', color: '#065F46',
+                                        padding: '6px 12px', borderRadius: 6, fontSize: 13, fontWeight: 600
+                                    }}>{level}</span>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+                </>
+            );
+        }
+
+        function SessionModal({ session, role, onClose, onMarkAttendance, calculateBilling }) {
+            const billing = calculateBilling(session);
+            const canMark = (
+                (role === 'coach' && session.coachId === 'c1') || // Coach view for own sessions
+                (role === 'headCoach' && session.coachId === 'c1') || // Head coach only for their own sessions
+                (role === 'assistantCoach' && session.coachId === 'c2') // Assistant coach for their sessions
+            );
+            const isAdmin = role === 'admin';
+
+            return (
+                <div onClick={onClose} style={{
+                    position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+                    background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'flex-end',
+                    zIndex: 1000, animation: 'fadeIn 0.2s'
+                }}>
+                    <div onClick={(e) => e.stopPropagation()} style={{
+                        background: 'white', borderRadius: '24px 24px 0 0', padding: 24,
+                        width: '100%', maxHeight: '80vh', overflowY: 'auto', animation: 'slideUp 0.3s'
+                    }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 24 }}>
+                            <h2 style={{ fontSize: 22, fontWeight: 700, color: '#111827' }}>Session Details</h2>
+                            <button onClick={onClose} style={{
+                                background: '#F3F4F6', border: 'none', borderRadius: '50%',
+                                width: 36, height: 36, cursor: 'pointer'
+                            }}>
+                                <Icon name="x" size={20} />
+                            </button>
+                        </div>
+
+                        {session.status === 'completed' && billing && (
+                            <div style={{
+                                background: '#F0F9FF', border: '2px solid #3B82F6',
+                                borderRadius: 12, padding: 16, marginBottom: 20
+                            }}>
+                                <div style={{ fontSize: 14, fontWeight: 600, color: '#1E40AF', marginBottom: 12 }}>
+                                    💰 Billing Summary
+                                </div>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
+                                    <span style={{ fontSize: 14, color: '#374151' }}>
+                                        {role === 'student' ? 'Total Charged:' : 'Student Charges:'}
+                                    </span>
+                                    <span style={{ fontSize: 18, fontWeight: 700, color: '#3B82F6' }}>${billing.total}</span>
+                                </div>
+                                {role !== 'student' && role !== 'assistantCoach' && (
+                                    <>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+                                            <span style={{ fontSize: 14, color: '#374151' }}>Coach Hourly Rate:</span>
+                                            <span style={{ fontSize: 16, fontWeight: 700, color: '#10B981' }}>${session.coachRate}/hr</span>
+                                        </div>
+                                        {session.coachId !== 'c1' && billing.total > session.coachRate && (
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
+                                                <span style={{ fontSize: 14, color: '#374151' }}>Head Coach Profit:</span>
+                                                <span style={{ fontSize: 16, fontWeight: 700, color: '#8B5CF6' }}>
+                                                    ${billing.total - session.coachRate}
+                                                </span>
+                                            </div>
+                                        )}
+                                    </>
+                                )}
+                                {role === 'assistantCoach' && (
+                                    <div style={{ 
+                                        background: '#D1FAE5', 
+                                        padding: 12, 
+                                        borderRadius: 8,
+                                        marginTop: 8
+                                    }}>
+                                        <div style={{ fontSize: 13, color: '#065F46', fontWeight: 600 }}>
+                                            ✓ You earned ${ session.coachRate}/hr for this session
+                                        </div>
+                                    </div>
+                                )}
+                                {billing.total < session.basePrice && (
+                                    <div style={{ fontSize: 13, color: '#6B7280', borderTop: '1px solid #DBEAFE', paddingTop: 12 }}>
+                                        {role === 'student' 
+                                            ? `Your charge: $${billing.total}` 
+                                            : `Actual charge: $${billing.total} (Base: $${session.basePrice})`
+                                        }
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 20 }}>
+                            <DetailRow label="Date:" value={session.date} />
+                            <DetailRow label="Time:" value={session.time} />
+                            <DetailRow label="Venue:" value={session.venue} />
+                            <DetailRow label="Type:" value={session.type} />
+                            {session.coach && <DetailRow label="Coach:" value={session.coach} />}
+                            
+                            {/* Head Coach & Admin see both student rate and coach rate */}
+                            {(role === 'headCoach' || role === 'admin') && (
+                                <>
+                                    {session.pricePerStudent && (
+                                        <DetailRow label="Student Rate:" value={`$${session.pricePerStudent}/student`} />
+                                    )}
+                                    {session.coachRate && (
+                                        <DetailRow label="Coach Rate:" value={`$${session.coachRate}/hr`} />
+                                    )}
+                                </>
+                            )}
+                            
+                            {/* Assistant Coach sees only their hourly rate */}
+                            {role === 'assistantCoach' && session.coachRate && (
+                                <DetailRow label="Your Rate:" value={`$${session.coachRate}/hr`} />
+                            )}
+                            
+                            {/* Student sees their session cost */}
+                            {role === 'student' && session.pricePerStudent && (
+                                <DetailRow label="Session Rate:" value={`$${session.pricePerStudent}`} />
+                            )}
+                        </div>
+
+                        {session.students && session.students.length > 0 && (
+                            <div>
+                                <div style={{ fontSize: 16, fontWeight: 700, color: '#111827', marginBottom: 16 }}>
+                                    {role === 'student' ? 'My Details' : `Students (${session.students.length})`}
+                                </div>
+                                {session.students
+                                    .filter(student => role !== 'student' || student.id === 's1') // Students only see themselves (Ryan Ho = s1)
+                                    .map((student) => (
+                                    <div key={student.id} style={{
+                                        background: '#F9FAFB', borderRadius: 12, padding: 16,
+                                        marginBottom: 12, border: '1px solid #E5E7EB'
+                                    }}>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                                            <div>
+                                                <div style={{ fontSize: 15, fontWeight: 600, color: '#111827' }}>
+                                                    {role === 'student' && student.id === 's1' ? 'You' : student.name}
+                                                </div>
+                                                {role !== 'student' && (
+                                                    <div style={{ fontSize: 12, color: '#6B7280' }}>
+                                                        {student.email}
+                                                    </div>
+                                                )}
+                                            </div>
+                                            {student.attended !== null && (
+                                                <div style={{
+                                                    padding: '6px 12px', borderRadius: 6, fontSize: 12, fontWeight: 600,
+                                                    background: student.attended ? '#D1FAE5' : '#FEE2E2',
+                                                    color: student.attended ? '#065F46' : '#991B1B'
+                                                }}>
+                                                    {student.attended ? '✓ Attended' : '✗ Absent'}
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        {role === 'student' && student.attended !== null && (
+                                            <div style={{
+                                                background: student.attended ? '#D1FAE5' : '#FEE2E2',
+                                                padding: 12, borderRadius: 8, fontSize: 13,
+                                                color: student.attended ? '#065F46' : '#991B1B',
+                                                fontWeight: 600
+                                            }}>
+                                                {student.attended 
+                                                    ? `✓ You were charged $${session.pricePerStudent} for this session`
+                                                    : '✗ You were not charged (marked absent)'
+                                                }
+                                            </div>
+                                        )}
+
+                                        {(isAdmin || (role === 'headCoach' && session.coachId !== 'c1')) && student.attended === null && (
+                                            <div style={{
+                                                background: '#FEF3C7', padding: 10, borderRadius: 8,
+                                                fontSize: 13, color: '#92400E'
+                                            }}>
+                                                ℹ️ Please contact the assigned coach to mark attendance
+                                            </div>
+                                        )}
+
+                                        {canMark && student.attended === null && (
+                                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                                                <button onClick={() => onMarkAttendance(session.id, student.id, true)} style={{
+                                                    background: 'linear-gradient(135deg, #10B981 0%, #059669 100%)',
+                                                    color: 'white', border: 'none', borderRadius: 8, padding: 10,
+                                                    fontSize: 13, fontWeight: 600, cursor: 'pointer'
+                                                }}>
+                                                    ✓ Present
+                                                </button>
+                                                <button onClick={() => onMarkAttendance(session.id, student.id, false)} style={{
+                                                    background: 'linear-gradient(135deg, #EF4444 0%, #DC2626 100%)',
+                                                    color: 'white', border: 'none', borderRadius: 8, padding: 10,
+                                                    fontSize: 13, fontWeight: 600, cursor: 'pointer'
+                                                }}>
+                                                    ✗ Absent
+                                                </button>
+                                            </div>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                </div>
+            );
+        }
+
+        function ApprovalModal({ approval, onApprove, onReject, onClose }) {
+            return (
+                <div onClick={onClose} style={{
+                    position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+                    background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center',
+                    justifyContent: 'center', zIndex: 1000, padding: 20
+                }}>
+                    <div onClick={(e) => e.stopPropagation()} style={{
+                        background: 'white', borderRadius: 24, padding: 24, maxWidth: 400, width: '100%'
+                    }}>
+                        <h2 style={{ fontSize: 22, fontWeight: 700, marginBottom: 20 }}>
+                            {approval.type === 'rateChange' ? 'Rate Change Request' : 'Payout Request'}
+                        </h2>
+
+                        <div style={{ marginBottom: 24 }}>
+                            <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 16 }}>
+                                {approval.coachName}
+                            </div>
+
+                            {approval.type === 'rateChange' && (
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                                    <div style={{
+                                        background: '#F3F4F6', padding: 12, borderRadius: 12,
+                                        flex: 1, textAlign: 'center'
+                                    }}>
+                                        <div style={{ fontSize: 12, color: '#6B7280' }}>Current</div>
+                                        <div style={{ fontSize: 24, fontWeight: 700 }}>${approval.current}</div>
+                                    </div>
+                                    <Icon name="arrow-right" size={24} color="#6B7280" />
+                                    <div style={{
+                                        background: '#DBEAFE', padding: 12, borderRadius: 12,
+                                        flex: 1, textAlign: 'center'
+                                    }}>
+                                        <div style={{ fontSize: 12, color: '#1E40AF' }}>Proposed</div>
+                                        <div style={{ fontSize: 24, fontWeight: 700, color: '#1E40AF' }}>${approval.proposed}</div>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                            <button onClick={onReject} style={{
+                                background: 'white', color: '#EF4444', border: '2px solid #EF4444',
+                                borderRadius: 10, padding: 12, fontWeight: 600, cursor: 'pointer'
+                            }}>Reject</button>
+                            <button onClick={onApprove} style={{
+                                background: '#10B981', color: 'white', border: 'none',
+                                borderRadius: 10, padding: 12, fontWeight: 600, cursor: 'pointer'
+                            }}>Approve</button>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        function DetailRow({ label, value }) {
+            return (
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ fontSize: 14, color: '#6B7280' }}>{label}</span>
+                    <span style={{ fontSize: 14, fontWeight: 600, color: '#111827' }}>{value}</span>
+                </div>
+            );
+        }
+
+        function BottomNav({ activeTab, setActiveTab, color, tabs }) {
+            const labels = {
+                home: 'Home', coaches: 'Coaches', students: 'Students',
+                approvals: 'Approvals', sessions: 'Sessions', payments: 'Payments',
+                profile: 'Profile'
+            };
+            const icons = {
+                home: 'home', coaches: 'users', students: 'user-check',
+                approvals: 'check-square', sessions: 'calendar', payments: 'dollar-sign',
+                profile: 'user'
+            };
+
+            return (
+                <div style={{
+                    position: 'fixed', bottom: 0, left: 0, right: 0, background: 'white',
+                    borderTop: '1px solid #E5E7EB', display: 'flex', justifyContent: 'space-around',
+                    padding: '12px 0', boxShadow: '0 -2px 10px rgba(0,0,0,0.05)'
+                }}>
+                    {tabs.map(t => (
+                        <button key={t} onClick={() => setActiveTab(t)} style={{
+                            background: 'transparent', border: 'none', display: 'flex',
+                            flexDirection: 'column', alignItems: 'center', gap: 4, cursor: 'pointer',
+                            color: activeTab === t ? color : '#9CA3AF', padding: 0
+                        }}>
+                            <Icon name={icons[t]} size={24} />
+                            <span style={{ fontSize: 11, fontWeight: 600 }}>{labels[t]}</span>
+                        </button>
+                    ))}
+                </div>
+            );
+        }
+
+        function CoachDetailModal({ coach, sessions, calculateBilling, getCoachStats, onClose }) {
+            const coachSessions = sessions.filter(s => s.coachId === coach.id);
+            
+            // Filter completed sessions to current month only (April 2026)
+            const currentMonth = '2026-04';
+            const completedSessions = coachSessions.filter(s => 
+                s.status === 'completed' && s.date.startsWith(currentMonth)
+            );
+            
+            const upcomingSessions = coachSessions.filter(s => s.status !== 'completed');
+            const stats = getCoachStats(coach.id);
+            
+            // Calculate current month earnings
+            const currentMonthHours = completedSessions.length * 2;
+            const currentMonthEarnings = currentMonthHours * (coach?.rate || 0);
+            
+            // Group sessions by date for calendar view
+            const sessionsByDate = coachSessions.reduce((acc, s) => {
+                if (!acc[s.date]) acc[s.date] = [];
+                acc[s.date].push(s);
+                return acc;
+            }, {});
+            const sortedDates = Object.keys(sessionsByDate).sort().reverse();
+
+            return (
+                <div onClick={onClose} style={{
+                    position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+                    background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'flex-end',
+                    zIndex: 1000, animation: 'fadeIn 0.2s'
+                }}>
+                    <div onClick={(e) => e.stopPropagation()} style={{
+                        background: 'white', borderRadius: '24px 24px 0 0', padding: 24,
+                        width: '100%', maxHeight: '85vh', overflowY: 'auto', animation: 'slideUp 0.3s'
+                    }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 24 }}>
+                            <h2 style={{ fontSize: 22, fontWeight: 700, color: '#111827' }}>{coach.name}</h2>
+                            <button onClick={onClose} style={{
+                                background: '#F3F4F6', border: 'none', borderRadius: '50%',
+                                width: 36, height: 36, cursor: 'pointer'
+                            }}>
+                                <Icon name="x" size={20} />
+                            </button>
+                        </div>
+
+                        {/* Monthly Summary Card */}
+                        <div style={{
+                            background: 'linear-gradient(135deg, #3B82F6 0%, #2563EB 100%)',
+                            borderRadius: 16, padding: 20, marginBottom: 24, color: 'white'
+                        }}>
+                            <div style={{ fontSize: 14, opacity: 0.9, marginBottom: 8 }}>This Month's Earnings</div>
+                            <div style={{ fontSize: 36, fontWeight: 700, marginBottom: 16 }}>${stats.earnings}</div>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                                <div>
+                                    <div style={{ fontSize: 12, opacity: 0.8 }}>Sessions</div>
+                                    <div style={{ fontSize: 24, fontWeight: 700 }}>{stats.sessionsCount}</div>
+                                </div>
+                                <div>
+                                    <div style={{ fontSize: 12, opacity: 0.8 }}>Hourly Rate</div>
+                                    <div style={{ fontSize: 24, fontWeight: 700 }}>${coach.rate}/hr</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Pay Receipt Section */}
+                        <div style={{ marginBottom: 24 }}>
+                            <h3 style={{ fontSize: 16, fontWeight: 700, color: '#111827', marginBottom: 12 }}>
+                                💰 Payment Receipt - Current Month
+                            </h3>
+                            <div style={{ background: 'white', border: '2px solid #E5E7EB', borderRadius: 12, padding: 16 }}>
+                                {completedSessions.length === 0 ? (
+                                    <div style={{ textAlign: 'center', color: '#6B7280', padding: 20 }}>
+                                        No completed sessions this month
+                                    </div>
+                                ) : (
+                                    <>
+                                        {completedSessions.map(session => (
+                                            <div key={session.id} style={{
+                                                display: 'flex', justifyContent: 'space-between',
+                                                padding: '12px 0', borderBottom: '1px solid #F3F4F6'
+                                            }}>
+                                                <div>
+                                                    <div style={{ fontSize: 14, fontWeight: 600, color: '#111827' }}>
+                                                        {session.date}
+                                                    </div>
+                                                    <div style={{ fontSize: 12, color: '#6B7280' }}>
+                                                        {session.type} • {session.time}
+                                                    </div>
+                                                    <div style={{ fontSize: 11, color: '#3B82F6', marginTop: 2 }}>
+                                                        2 hours @ ${coach.rate}/hr
+                                                    </div>
+                                                </div>
+                                                <div style={{ fontSize: 16, fontWeight: 700, color: '#10B981' }}>
+                                                    ${coach.rate * 2}
+                                                </div>
+                                            </div>
+                                        ))}
+                                        <div style={{
+                                            display: 'flex', justifyContent: 'space-between',
+                                            padding: '16px 0', marginTop: 8, borderTop: '2px solid #E5E7EB'
+                                        }}>
+                                            <span style={{ fontSize: 16, fontWeight: 700, color: '#111827' }}>
+                                                Total ({completedSessions.length} sessions • {currentMonthHours} hrs)
+                                            </span>
+                                            <span style={{ fontSize: 20, fontWeight: 700, color: '#3B82F6' }}>
+                                                ${currentMonthEarnings}
+                                            </span>
+                                        </div>
+                                    </>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Calendar View */}
+                        <div>
+                            <h3 style={{ fontSize: 16, fontWeight: 700, color: '#111827', marginBottom: 12 }}>
+                                📅 Session Calendar
+                            </h3>
+                            {sortedDates.length === 0 ? (
+                                <div style={{
+                                    background: '#F9FAFB', borderRadius: 12, padding: 24,
+                                    textAlign: 'center', color: '#6B7280'
+                                }}>
+                                    No sessions scheduled
+                                </div>
+                            ) : (
+                                sortedDates.map(date => (
+                                    <div key={date} style={{ marginBottom: 16 }}>
+                                        <div style={{
+                                            background: '#F9FAFB', padding: '10px 16px',
+                                            borderRadius: 8, marginBottom: 8,
+                                            display: 'flex', justifyContent: 'space-between', alignItems: 'center'
+                                        }}>
+                                            <div style={{ fontSize: 14, fontWeight: 600, color: '#111827' }}>
+                                                {date}
+                                            </div>
+                                            <div style={{
+                                                fontSize: 12, fontWeight: 600, color: '#6B7280',
+                                                background: 'white', padding: '4px 8px', borderRadius: 4
+                                            }}>
+                                                {sessionsByDate[date].length} session{sessionsByDate[date].length !== 1 ? 's' : ''}
+                                            </div>
+                                        </div>
+                                        {sessionsByDate[date].map(session => (
+                                            <div key={session.id} style={{
+                                                background: 'white', border: '1px solid #E5E7EB',
+                                                borderRadius: 8, padding: 12, marginBottom: 8,
+                                                display: 'flex', justifyContent: 'space-between', alignItems: 'center'
+                                            }}>
+                                                <div>
+                                                    <div style={{ fontSize: 13, fontWeight: 600, color: '#111827' }}>
+                                                        {session.time}
+                                                    </div>
+                                                    <div style={{ fontSize: 12, color: '#6B7280' }}>
+                                                        {session.type} • {session.venue}
+                                                    </div>
+                                                </div>
+                                                <div style={{
+                                                    padding: '4px 10px', borderRadius: 6, fontSize: 11, fontWeight: 600,
+                                                    background: session.status === 'completed' ? '#D1FAE5' : '#DBEAFE',
+                                                    color: session.status === 'completed' ? '#065F46' : '#1E40AF'
+                                                }}>
+                                                    {session.status === 'completed' ? 'Completed' : 'Upcoming'}
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                ))
+                            )}
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        function StudentDetailModal({ student, sessions, calculateBilling, onClose, updateAbsenceCharge, role }) {
+            const [editingAbsence, setEditingAbsence] = React.useState(null);
+            const [absenceInput, setAbsenceInput] = React.useState('');
+            
+            const studentSessions = sessions.filter(s => 
+                s.students?.some(st => st.id === student.id)
+            );
+            const completedSessions = studentSessions.filter(s => s.status === 'completed');
+            
+            // Calculate monthly charges (including absence charges)
+            let totalCharged = 0;
+            let totalOwed = 0;
+            const receipts = completedSessions.map(session => {
+                const studentInSession = session.students.find(st => st.id === student.id);
+                let charge = 0;
+                
+                if (studentInSession?.attended === true) {
+                    charge = session.pricePerStudent;
+                } else if (studentInSession?.attended === false && studentInSession?.absenceCharge > 0) {
+                    charge = studentInSession.absenceCharge;
+                }
+                
+                const paid = session.paid;
+                
+                if (charge > 0) {
+                    totalCharged += charge;
+                    if (!paid) totalOwed += charge;
+                }
+                
+                return {
+                    session,
+                    charge,
+                    paid,
+                    attended: studentInSession?.attended,
+                    absenceCharge: studentInSession?.absenceCharge
+                };
+            });
+
+            return (
+                <div onClick={onClose} style={{
+                    position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+                    background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'flex-end',
+                    zIndex: 1000, animation: 'fadeIn 0.2s'
+                }}>
+                    <div onClick={(e) => e.stopPropagation()} style={{
+                        background: 'white', borderRadius: '24px 24px 0 0', padding: 24,
+                        width: '100%', maxHeight: '85vh', overflowY: 'auto', animation: 'slideUp 0.3s'
+                    }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 24 }}>
+                            <h2 style={{ fontSize: 22, fontWeight: 700, color: '#111827' }}>{student.name}</h2>
+                            <button onClick={onClose} style={{
+                                background: '#F3F4F6', border: 'none', borderRadius: '50%',
+                                width: 36, height: 36, cursor: 'pointer'
+                            }}>
+                                <Icon name="x" size={20} />
+                            </button>
+                        </div>
+
+                        {/* Monthly Summary Card */}
+                        <div style={{
+                            background: 'linear-gradient(135deg, #10B981 0%, #059669 100%)',
+                            borderRadius: 16, padding: 20, marginBottom: 24, color: 'white'
+                        }}>
+                            <div style={{ fontSize: 14, opacity: 0.9, marginBottom: 8 }}>This Month's Charges</div>
+                            <div style={{ fontSize: 36, fontWeight: 700, marginBottom: 16 }}>${totalCharged}</div>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                                <div>
+                                    <div style={{ fontSize: 12, opacity: 0.8 }}>Sessions Attended</div>
+                                    <div style={{ fontSize: 24, fontWeight: 700 }}>
+                                        {receipts.filter(r => r.attended).length}
+                                    </div>
+                                </div>
+                                <div>
+                                    <div style={{ fontSize: 12, opacity: 0.8 }}>Outstanding</div>
+                                    <div style={{ fontSize: 24, fontWeight: 700 }}>
+                                        ${totalOwed}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Payment Receipt */}
+                        <div>
+                            <h3 style={{ fontSize: 16, fontWeight: 700, color: '#111827', marginBottom: 12 }}>
+                                💰 Payment Receipt - Current Month
+                            </h3>
+                            <div style={{ background: 'white', border: '2px solid #E5E7EB', borderRadius: 12, padding: 16 }}>
+                                {receipts.length === 0 ? (
+                                    <div style={{ textAlign: 'center', color: '#6B7280', padding: 20 }}>
+                                        No sessions this month
+                                    </div>
+                                ) : (
+                                    <>
+                                        {receipts.map(({ session, charge, paid, attended, absenceCharge }) => (
+                                            <div key={session.id} style={{
+                                                padding: '12px 0', borderBottom: '1px solid #F3F4F6',
+                                                opacity: attended === false && charge === 0 ? 0.5 : 1
+                                            }}>
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+                                                    <div>
+                                                        <div style={{ fontSize: 14, fontWeight: 600, color: '#111827' }}>
+                                                            {session.date}
+                                                        </div>
+                                                        <div style={{ fontSize: 12, color: '#6B7280' }}>
+                                                            {session.type} • {session.coach}
+                                                        </div>
+                                                        <div style={{ fontSize: 11, color: attended ? '#065F46' : '#991B1B', marginTop: 4 }}>
+                                                            {attended === true 
+                                                                ? '✓ Attended' 
+                                                                : attended === false 
+                                                                    ? (absenceCharge > 0 ? `✗ Absent (Charged $${absenceCharge})` : '✗ Absent')
+                                                                    : '⏳ Pending'
+                                                            }
+                                                        </div>
+                                                    </div>
+                                                    <div style={{ textAlign: 'right' }}>
+                                                        <div style={{ 
+                                                            fontSize: 16, 
+                                                            fontWeight: 700, 
+                                                            color: charge > 0 ? '#10B981' : '#6B7280'
+                                                        }}>
+                                                            ${charge}
+                                                        </div>
+                                                        {charge > 0 && (
+                                                            <div style={{
+                                                                fontSize: 11, fontWeight: 600,
+                                                                color: paid ? '#065F46' : '#F59E0B',
+                                                                marginTop: 4
+                                                            }}>
+                                                                {paid ? 'Paid' : 'Unpaid'}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                                
+                                                {/* Absence Charge Override (Head Coach/Admin only) */}
+                                                {(role === 'headCoach' || role === 'admin') && attended === false && (
+                                                    <div style={{
+                                                        background: '#FEF3C7', borderRadius: 8, padding: 12, marginTop: 8
+                                                    }}>
+                                                        <div style={{ fontSize: 12, color: '#92400E', marginBottom: 8, fontWeight: 600 }}>
+                                                            💰 Override Absence Charge (Court/Admin Costs)
+                                                        </div>
+                                                        {editingAbsence === session.id ? (
+                                                            <div style={{ display: 'flex', gap: 8 }}>
+                                                                <input
+                                                                    type="number"
+                                                                    value={absenceInput}
+                                                                    onChange={(e) => setAbsenceInput(e.target.value)}
+                                                                    placeholder="Enter amount"
+                                                                    style={{
+                                                                        flex: 1, padding: '6px 10px', borderRadius: 6,
+                                                                        border: '1px solid #D1D5DB', fontSize: 13
+                                                                    }}
+                                                                />
+                                                                <button
+                                                                    onClick={() => {
+                                                                        const studentInSession = session.students.find(st => st.id === student.id);
+                                                                        updateAbsenceCharge(session.id, student.id, absenceInput);
+                                                                        setEditingAbsence(null);
+                                                                        setAbsenceInput('');
+                                                                    }}
+                                                                    style={{
+                                                                        background: '#10B981', color: 'white',
+                                                                        border: 'none', borderRadius: 6, padding: '6px 12px',
+                                                                        fontSize: 12, fontWeight: 600, cursor: 'pointer'
+                                                                    }}
+                                                                >
+                                                                    Save
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => {
+                                                                        setEditingAbsence(null);
+                                                                        setAbsenceInput('');
+                                                                    }}
+                                                                    style={{
+                                                                        background: '#E5E7EB', color: '#6B7280',
+                                                                        border: 'none', borderRadius: 6, padding: '6px 12px',
+                                                                        fontSize: 12, fontWeight: 600, cursor: 'pointer'
+                                                                    }}
+                                                                >
+                                                                    Cancel
+                                                                </button>
+                                                            </div>
+                                                        ) : (
+                                                            <button
+                                                                onClick={() => {
+                                                                    setEditingAbsence(session.id);
+                                                                    setAbsenceInput(absenceCharge?.toString() || '');
+                                                                }}
+                                                                style={{
+                                                                    background: 'white', color: '#92400E',
+                                                                    border: '1px solid #92400E', borderRadius: 6,
+                                                                    padding: '6px 12px', fontSize: 12, fontWeight: 600,
+                                                                    cursor: 'pointer', width: '100%'
+                                                                }}
+                                                            >
+                                                                {absenceCharge > 0 ? `Edit Charge ($${absenceCharge})` : 'Add Absence Charge'}
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        ))}
+                                        <div style={{
+                                            display: 'flex', justifyContent: 'space-between',
+                                            padding: '16px 0', marginTop: 8, borderTop: '2px solid #E5E7EB'
+                                        }}>
+                                            <span style={{ fontSize: 16, fontWeight: 700, color: '#111827' }}>
+                                                Total Charged
+                                            </span>
+                                            <span style={{ fontSize: 20, fontWeight: 700, color: '#10B981' }}>
+                                                ${totalCharged}
+                                            </span>
+                                        </div>
+                                        {totalOwed > 0 && (
+                                            <div style={{
+                                                background: '#FEF3C7', padding: 12, borderRadius: 8,
+                                                marginTop: 12, display: 'flex', justifyContent: 'space-between',
+                                                alignItems: 'center'
+                                            }}>
+                                                <span style={{ fontSize: 14, fontWeight: 600, color: '#92400E' }}>
+                                                    Outstanding Balance
+                                                </span>
+                                                <span style={{ fontSize: 18, fontWeight: 700, color: '#92400E' }}>
+                                                    ${totalOwed}
+                                                </span>
+                                            </div>
+                                        )}
+                                    </>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<HuddleApp />);
+    
+        
+        function initApp() {
+            const root = ReactDOM.createRoot(document.getElementById('app-view'));
+            root.render(<HuddleApp />);
+        }
+    </script>
+</body>
+</html>
